@@ -340,7 +340,7 @@ def main():
     parser.add_argument('--port', type=int, default=12345, help='服务器端口')
     parser.add_argument('--algo-file', default='algorithm.json', help='算法文件路径')
     parser.add_argument('--name', default='11', help='11')
-    parser.add_argument('--algo-ip', default='192.168.43.3', help='算法IP地址')
+    parser.add_argument('--algo-ip', default='192.168.43.4', help='算法IP地址')
     parser.add_argument('--algo-port', type=int, default=8080, help='算法服务端口')
     parser.add_argument('--interval', type=float, default=2.0, help='发送间隔(秒)')
     parser.add_argument('--count', type=int, default=0, help='发送次数(0表示无限发送)')
