@@ -30,6 +30,8 @@ step1/
 │   ├── monitoring_platform.py     # 监控平台实现
 │   └── generated_algorithms/       # 生成的算法实例
 ├── http_connect.py           # HTTP连接和状态上报模块
+├── mock_server.py            # 模拟需求端HTTP服务
+├── test_client.py            # 测试客户端
 ├── requirements.txt          # 项目依赖
 └── 监控界面注册规范.md       # 监控界面注册规范文档
 ```
@@ -59,6 +61,12 @@ step1/
 - 支持运行时配置更新
 - 灵活的参数配置系统
 
+### 5. 模拟需求端HTTP服务
+- 提供完整的HTTP服务模拟环境
+- 支持接收和解析算法状态消息
+- 实时显示算法运行状态和资源使用情况
+- 提供健康检查和服务状态查询接口
+
 ## 安装和配置
 
 ### 环境要求
@@ -76,6 +84,7 @@ pip install -r requirements.txt
 - `pynvml`: NVIDIA GPU监控
 - `numpy`: 数值计算
 - `threading`: 多线程支持
+- `flask`: Web服务框架（用于模拟需求端）
 
 ## 使用指南
 
@@ -103,6 +112,21 @@ python algorithm_status_monitor.py
 2. 继承HTTPStatusReporter类
 3. 实现必要的状态上报功能
 4. 更新algorithm_data.json配置
+
+### 5. 启动模拟需求端服务
+```bash
+python mock_server.py
+```
+服务将在 `http://127.0.0.1:8192` 启动，提供以下端点：
+- `/resource/webSocketOnMessage`: 接收算法状态消息
+- `/health`: 健康检查
+- `/`: 服务信息页面
+
+### 6. 运行测试客户端
+```bash
+python test_client.py
+```
+测试客户端将向模拟服务发送测试数据，验证通信功能。
 
 ## HTTP状态上报协议
 
@@ -150,18 +174,29 @@ python algorithm_status_monitor.py
 - 系统资源监控
 - 网络状态管理
 - 优雅关闭处理
+- 标准化数据格式
+- 连接池管理和代理禁用
+- 改进的错误处理机制
 
 ### 模板结构
 ```python
 class HTTPStatusReporter:
-    def __init__(self, server_ip, server_port)
+    def __init__(self, server_ip, server_port)  # 使用requests.Session，禁用代理
     def start_periodic_reporting(self, name, info, interval)
-    def send_status_message(self, name, info)
+    def send_status_message(self, name, info)  # 标准化数据格式
     def stop_reporting(self)
-    def get_cpu_usage(self)
-    def get_memory_usage(self)
-    def get_gpu_usage(self)
+    def get_cpu_usage(self)      # 返回数值格式（无百分号）
+    def get_memory_usage(self)   # 返回数值格式（无百分号）
+    def get_gpu_usage(self)      # 返回数值格式（无百分号）
+    def get_local_ip(self)       # 获取本地IP地址
 ```
+
+### 主要改进
+- **统一数据格式**：所有资源使用率返回数值格式，便于处理
+- **连接优化**：使用requests.Session提高连接效率
+- **代理禁用**：避免系统代理干扰通信
+- **错误处理**：改进异常处理和日志记录
+- **标准化字段**：统一状态消息格式和字段定义
 
 ## 配置参数
 
@@ -210,6 +245,46 @@ algorithm_info = {
 # 启动周期性上报
 http_reporter.start_periodic_reporting("算法名称", algorithm_info, 30)
 ```
+
+## 测试和验证
+
+### 功能测试流程
+1. **启动模拟需求端服务**
+   ```bash
+   python mock_server.py
+   ```
+   服务将在 `http://127.0.0.1:8192` 启动
+
+2. **运行测试客户端**
+   ```bash
+   python test_client.py
+   ```
+   测试客户端将执行以下操作：
+   - 发送健康检查请求到 `/health` 端点
+   - 发送模拟算法状态数据到 `/resource/webSocketOnMessage` 端点
+   - 验证服务器响应和数据接收
+
+3. **验证算法状态上报**
+   运行任意算法模板文件，例如：
+   ```bash
+   cd DESIGN/template/内置服务
+   python K_means算法.py --http-server 127.0.0.1 --http-port 8192
+   ```
+   观察模拟服务的日志输出，确认状态数据正确接收
+
+### 测试数据格式
+测试客户端发送的数据包含：
+- 算法基本信息（名称、类别、版本等）
+- 网络信息（IP、端口、状态）
+- 资源使用情况（CPU、内存、GPU）
+- 时间戳和其他元数据
+
+### 验证要点
+- ✅ HTTP连接建立成功
+- ✅ 数据格式符合规范
+- ✅ 状态消息正确解析
+- ✅ 资源监控数据准确
+- ✅ 错误处理机制有效
 
 ## 故障排除
 
