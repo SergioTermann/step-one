@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""
+标准算法模板 - 基于AlgSrv_Notspecified_generated.py倒推生成
+包含完整的HTTP状态上报和UDP通信功能
+"""
 import socket
 import json
 import time
@@ -17,15 +21,12 @@ from datetime import datetime
 
 def get_local_ip():
     """获取本地IP地址"""
-    try:
-        # 创建一个临时socket连接
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))  # 连接到外部地址
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        return "127.0.0.1"  # 如果获取失败，返回本地回环地址
+    # 创建一个临时socket连接
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))  # 连接到外部地址
+    local_ip = s.getsockname()[0]
+    s.close()
+    return local_ip
 
 
 class HTTPStatusReporter:
@@ -33,6 +34,9 @@ class HTTPStatusReporter:
     
     def __init__(self, server_ip='180.1.80.3', server_port=8192):
         """初始化HTTP状态上报器"""
+        self.session = requests.Session()  # 创建HTTP会话
+        self.session.trust_env = False  # 禁用系统代理，避免502网关问题
+        self.session.headers.update({'Connection': 'close'})
         self.server_ip = server_ip
         self.server_port = server_port
         self.base_url = f"http://{server_ip}:{server_port}/resource/webSocketOnMessage"
@@ -47,12 +51,12 @@ class HTTPStatusReporter:
     def get_memory_usage(self):
         """获取当前进程内存使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.memory_percent():.2f}%"
+        return f"{process.memory_percent():.2f}"
 
     def get_cpu_usage(self):
         """获取当前进程CPU使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.cpu_percent(interval=1):.2f}%"
+        return f"{process.cpu_percent(interval=1):.2f}"
 
     def get_gpu_usage(self):
         """获取当前GPU使用率"""
@@ -61,10 +65,10 @@ class HTTPStatusReporter:
             handle = pynvml.nvmlDeviceGetHandleByIndex(0)
             utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
             gpu_percent = utilization.gpu
-            return f"{gpu_percent:.2f}%"
+            return f"{gpu_percent:.2f}"
         except:
-            return "0.00%"
-    
+            return "0.00"
+
     def build_status_message(self, algorithm_name, algorithm_info):
         """构建状态消息"""
         # 获取当前资源使用情况
@@ -76,10 +80,10 @@ class HTTPStatusReporter:
         status_data = [{
             "name": algorithm_name,
             "category": algorithm_info.get("category", "内置服务"),
-            "className": algorithm_info.get("class", "认知识别类"),
-            "subcategory": algorithm_info.get("subcategory", "状态估计类"),
+            "className": algorithm_info.get("class", "算法类"),
+            "subcategory": algorithm_info.get("subcategory", "通用算法"),
             "version": algorithm_info.get("version", "1.0"),
-            "description": algorithm_info.get("description", "扩展卡尔曼滤波算法，用于非线性系统状态估计"),
+            "description": algorithm_info.get("description", "算法描述"),
             "ip": get_local_ip(),
             "port": algorithm_info.get("network_info", {}).get("port", 8080),
             "creator": algorithm_info.get("creator", "system"),
@@ -95,27 +99,33 @@ class HTTPStatusReporter:
         }]
 
         return status_data
-    
+
     def send_status_message(self, algorithm_name, algorithm_info):
-        """发送状态消息到服务器"""
+        """发送状态消息"""
         try:
             status_data = self.build_status_message(algorithm_name, algorithm_info)
-            if status_data:
-                response = requests.post(
-                    self.base_url,
-                    json=status_data,
-                    headers={'Content-Type': 'application/json', 'Connection': 'close'},
-                    timeout=5
-                )
-                
-                if response.status_code == 200:
-                    self.log_with_timestamp(f"状态上报成功: {algorithm_name}")
-                else:
-                    self.log_with_timestamp(f"状态上报失败: HTTP {response.status_code}")
-                    
+
+            if not status_data:
+                return False
+
+            # 发送HTTP POST请求
+            response = self.session.post(
+                self.base_url,
+                json=status_data,
+                headers={'Content-Type': 'application/json', 'Connection': 'close'},
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                self.log_with_timestamp(f"成功发送算法 '{algorithm_name}' 的状态信息")
+                return True
+            else:
+                self.log_with_timestamp(f"发送状态失败，HTTP状态码: {response.status_code}")
+                return False
         except Exception as e:
-            self.log_with_timestamp(f"状态上报时出错: {e}")
-    
+            self.log_with_timestamp(f"发送状态时发生错误: {str(e)}")
+            return False
+
     def periodic_report(self, algorithm_name, algorithm_info, interval):
         """定期上报状态"""
         while self.reporting:
@@ -161,11 +171,14 @@ def get_cpu_usage():
 
 def get_gpu_usage():
     """获取当前GPU使用率"""
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-    utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-    gpu_percent = utilization.gpu
-    return f"{gpu_percent:.2f}%"
+    try:
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        gpu_percent = utilization.gpu
+        return f"{gpu_percent:.2f}%"
+    except:
+        return "0.00%"
 
 
 class AlgorithmStatusClient:
@@ -173,6 +186,7 @@ class AlgorithmStatusClient:
         """初始化算法状态发送客户端"""
         self.server_ip = server_ip
         self.server_port = server_port
+        print('server ip is', server_ip)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send_algorithm_info(self, algorithm_info):
@@ -186,7 +200,7 @@ class AlgorithmStatusClient:
             print(f"已发送算法 '{algorithm_info.get('name', '未命名')}' 的信息到 {self.server_ip}:{self.server_port}")
             return True
         except Exception as e:
-            print(f"发送算法信息时出错: {e}")
+            print(f"发送算法信息时发生错误: {str(e)}")
             return False
 
     def close(self):
@@ -194,35 +208,12 @@ class AlgorithmStatusClient:
         self.socket.close()
 
 
-def load_algorithm_from_file(file_path, algorithm_name):
-    """从文件中加载指定名称的算法信息"""
-    try:
-        if not os.path.exists(file_path):
-            print(f"错误: 文件 '{file_path}' 不存在")
-            return None
-
-        with open(file_path, 'r', encoding='utf-8') as f:
-            algorithms_data = json.load(f)
-
-        if algorithm_name not in algorithms_data:
-            print(f"错误: 在文件中找不到算法 '{algorithm_name}'")
-            return None
-
-        return algorithms_data[algorithm_name]
-    except json.JSONDecodeError:
-        print(f"错误: 文件 '{file_path}' 不是有效的JSON格式")
-        return None
-    except Exception as e:
-        print(f"加载算法信息时出错: {e}")
-        return None
-
-
 def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="空闲", is_remote=True):
     """更新算法信息，添加网络状态信息"""
     if not algorithm_info:
         return None
 
-        # 更新时间戳为当前时间
+    # 更新时间戳为当前时间
     algorithm_info["update_time"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
     # 添加网络信息
@@ -231,7 +222,6 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
         "ip": ip,
         "port": port,
         "status": status,
-
         # 资源使用情况 - 调用您已有的函数
         "memory_usage": get_memory_usage(),
         "cpu_usage": get_cpu_usage(),
@@ -242,58 +232,31 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
     return algorithm_info
 
 
-class TemplateClass:
-    def __init__(self, initial_state=None, initial_covariance=None, process_noise=None, measurement_noise=None):
-        # 为了兼容性添加默认参数
-        if initial_state is None:
-            initial_state = np.array([0.0, 0.0])
-        if initial_covariance is None:
-            initial_covariance = np.eye(2)
-        if process_noise is None:
-            process_noise = np.eye(2) * 0.01
-        if measurement_noise is None:
-            measurement_noise = np.array([[0.1]])
-
-        self.state = initial_state
-        self.covariance = initial_covariance
-        self.process_noise = process_noise
-        self.measurement_noise = measurement_noise
+class StandardAlgorithm:
+    """标准算法基类 - 需要被具体算法继承"""
+    
+    def __init__(self):
         self.is_running = False  # 添加运行状态标志
-
-    def predict(self, control_input):
-        # 状态转移矩阵 (假设简单的匀速运动模型)
-        F = np.array([[1.0, 1.0], [0.0, 1.0]])
-
-        # 控制输入矩阵 (假设控制输入直接影响加速度)
-        B = np.array([0.5, 1.0])  # 对于位置和速度的影响
-
-        # 预测状态
-        self.state = F @ self.state + B * control_input
-
-        # 预测协方差
-        self.covariance = F @ self.covariance @ F.T + self.process_noise
-
-    def update(self, measurement):
-        # 测量矩阵 (假设直接测量位置)
-        H = np.array([[1.0, 0.0]])
-        kalman_gain = self.covariance @ H.T @ np.linalg.inv(H @ self.covariance @ H.T + self.measurement_noise)
-        self.state = self.state + kalman_gain @ (measurement - H @ self.state)
-        self.covariance = (np.eye(2) - kalman_gain @ H) @ self.covariance
-
-    def get_state(self):
-        return self.state, self.covariance
-
+        self.algorithm_name = "标准算法"  # 算法名称，子类应该重写
+        
+    def initialize(self, **kwargs):
+        """初始化算法参数 - 子类应该重写此方法"""
+        pass
+        
     def run(self):
-        # 算法执行代码...
-        # 这里可以添加实际的算法逻辑
-        time.sleep(0.5)  # 模拟算法执行
+        """算法执行逻辑 - 子类应该重写此方法"""
+        self.is_running = True
+        # 模拟算法执行
+        time.sleep(0.5)
+        self.is_running = False
+        
+    def get_result(self):
+        """获取算法结果 - 子类应该重写此方法"""
+        return None
 
-    # 全局变量用于跟踪程序状态
 
-
+# 全局变量用于跟踪程序状态
 program_running = True
-client = None
-status_thread = None
 
 
 def send_offline_status(client, algorithm_info, algo_ip, algo_port, is_remote):
@@ -310,67 +273,46 @@ def send_offline_status(client, algorithm_info, algo_ip, algo_port, is_remote):
         print("已发送离线状态")
 
 
-def signal_handler(sig, frame):
-    """处理程序终止信号"""
-    global program_running
-    program_running = False
-    print("正在关闭程序...")
-
-
-def status_monitoring_thread(client, config_param, algorithm, args):
-    """状态监控线程，负责根据算法运行状态更新和发送状态信息"""
-    global program_running
-
-    while program_running:
-        # 根据算法运行状态确定状态信息
-        current_status = "调用中" if algorithm.is_running else "空闲"
-
-        updated_info = update_algorithm_info(
-            config_param,
-            ip=args.algo_ip,
-            port=args.algo_port,
-            status=current_status,
-            is_remote=args.remote
-        )
-
-        if updated_info:
-            client.send_algorithm_info(updated_info)
-
-        time.sleep(args.interval)
-
-        # 程序结束前发送离线状态
-    send_offline_status(client, config_param, args.algo_ip, args.algo_port, args.remote)
-
-
 def main():
-    parser = argparse.ArgumentParser(description='算法状态发送器')
+    """主函数 - 标准的算法启动流程"""
+    parser = argparse.ArgumentParser(description='标准算法模板')
     parser.add_argument('--server', default='127.0.0.1', help='服务器IP地址')
     parser.add_argument('--port', type=int, default=12345, help='服务器端口')
-    parser.add_argument('--algo-file', default='algorithm.json', help='算法文件路径')
-    parser.add_argument('--name', default='扩展卡尔曼滤波算法', help='算法名称')
-    parser.add_argument('--algo-ip', default='192.168.43.3', help='算法IP地址')
+    parser.add_argument('--name', default='标准算法', help='算法名称')
+    parser.add_argument('--algo-ip', default='192.168.43.4', help='算法IP地址')
     parser.add_argument('--algo-port', type=int, default=8080, help='算法服务端口')
     parser.add_argument('--interval', type=float, default=2.0, help='发送间隔(秒)')
     parser.add_argument('--count', type=int, default=0, help='发送次数(0表示无限发送)')
-    parser.add_argument('--status', default='running', help='算法状态')
     parser.add_argument('--remote', action='store_true', default=True, help='是否为远程算法')
     # 添加HTTP服务器相关参数
     parser.add_argument('--http-server', default='180.1.80.3', help='远程HTTP服务器IP地址')
     parser.add_argument('--http-port', type=int, default=8192, help='远程HTTP服务器端口')
 
     args = parser.parse_args()
-    config_param = "${SPECIAL_PARAM}"
-
-    try:
-        config_param = ast.literal_eval(config_param)
-    except (SyntaxError, ValueError):
-        # 如果解析失败，使用默认空字典
-        config_param = {}
-        print("无法解析配置参数，使用默认配置")
-
-    if not config_param:
-        print(f"无法加载算法 '{args.name}'，程序退出")
-        return
+    
+    # 默认配置参数 - 具体算法应该修改这些参数
+    config_param = {
+        'category': '内置服务',
+        'class': '算法类',
+        'subcategory': '通用算法',
+        'version': '1.0',
+        'creator': 'system',
+        'create_time': time.strftime("%Y/%m/%d %H:%M"),
+        'maintainer': 'system',
+        'update_time': time.strftime("%Y/%m/%d %H:%M"),
+        'description': '标准算法模板',
+        'inputs': [
+            {'name': '输入参数', 'symbol': 'input', 'type': 'vector', 'dimension': '1', 'description': '算法输入'}
+        ],
+        'outputs': [
+            {'name': '输出结果', 'symbol': 'output', 'type': 'vector', 'dimension': '1', 'description': '算法输出'}
+        ],
+        'network_info': {
+            'ip': '127.0.0.1',
+            'status': '空闲',
+            'is_remote': False
+        }
+    }
 
     args.ip = get_local_ip()
     
@@ -380,14 +322,14 @@ def main():
     # 构建详细的算法信息
     algorithm_info = {
         "name": args.name,
-        "category": "内置服务",
-        "class": "滤波算法类",
-        "subcategory": "卡尔曼滤波类",
-        "version": "1.0",
-        "creator": "system",
-        "description": "扩展卡尔曼滤波算法，用于非线性系统状态估计",
-        "inputs": ["状态向量", "观测向量", "控制输入"],
-        "outputs": ["估计状态", "协方差矩阵"],
+        "category": config_param.get("category", "内置服务"),
+        "class": config_param.get("class", "算法类"),
+        "subcategory": config_param.get("subcategory", "通用算法"),
+        "version": config_param.get("version", "1.0"),
+        "creator": config_param.get("creator", "system"),
+        "description": config_param.get("description", "算法描述"),
+        "inputs": config_param.get("inputs", []),
+        "outputs": config_param.get("outputs", []),
         "network_info": {
             "ip": args.algo_ip,
             "port": args.algo_port,
@@ -395,8 +337,8 @@ def main():
         }
     }
 
-    # 初始化算法模板类
-    algorithm = TemplateClass()
+    # 初始化算法实例
+    algorithm = StandardAlgorithm()
 
     # 设置信号处理器，用于捕获程序终止信号
     def signal_handler_with_http(sig, frame):
@@ -420,38 +362,23 @@ def main():
     # 启动HTTP状态上报
     http_reporter.start_periodic_reporting(args.name, algorithm_info, args.interval)
 
-    try:
-        count = 0
-        algorithm.is_running = True
-        while program_running and (args.count == 0 or count < args.count):
-            # 算法执行，这将设置is_running为True
-            algorithm.run()
+    count = 0
+    while program_running and (args.count == 0 or count < args.count):
+        # 算法执行
+        algorithm.run()
 
-            count += 1
-            if count > 20:
-                algorithm.is_running = False
-            if args.count > 0:
-                print(f"已执行算法 {count}/{args.count} 次")
-            else:
-                print(f"已执行算法 {count} 次")
+        count += 1
+        # 模拟算法状态变化
+        if count > 20:
+            algorithm.is_running = False
+            
+        if args.count > 0:
+            print(f"已执行算法 {count}/{args.count} 次")
+        else:
+            print(f"已执行算法 {count} 次")
 
-            # 在算法执行之间添加一些间隔
-            time.sleep(args.interval / 2)
-    except Exception as e:
-        print(f"程序执行出错: {e}")
-    finally:
-        # 设置程序状态为不运行
-        program_running = False
-
-        # 发送离线状态
-        offline_info = algorithm_info.copy()
-        offline_info["network_info"]["status"] = "离线"
-        http_reporter.send_status_message(args.name, offline_info)
-        
-        # 停止HTTP状态上报
-        http_reporter.stop_reporting()
-
-        print("程序已正常退出")
+        # 在算法执行之间添加一些间隔
+        time.sleep(args.interval / 2)
 
 
 if __name__ == "__main__":

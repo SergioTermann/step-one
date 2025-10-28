@@ -1,3 +1,18 @@
+def get_local_ip():
+    """获取本机IP地址"""
+    try:
+        # 创建一个UDP socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # 连接到一个远程地址（不需要真正连接）
+        s.connect(("8.8.8.8", 80))
+        # 获取本地IP地址
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "127.0.0.1"
+
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -9,6 +24,9 @@ import sys
 import datetime
 import struct
 import socket  # 保留socket用于本地监听
+import psutil
+import pynvml
+import os
 
 # Configuration parameters
 REMOTE_IP = '180.1.80.3'
@@ -33,23 +51,63 @@ class HTTPStatusReporter:
         self._running = False
         self._thread = None
 
+    def get_memory_usage(self):
+        """获取当前进程内存使用率"""
+        process = psutil.Process(os.getpid())
+        return process.memory_percent()
+
+    def get_cpu_usage(self):
+        """获取当前进程CPU使用率"""
+        process = psutil.Process(os.getpid())
+        return process.cpu_percent(interval=1)
+
+    def get_gpu_usage(self):
+        """获取当前GPU使用率"""
+        try:
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            gpu_percent = utilization.gpu
+            return gpu_percent
+        except:
+            return 0
+
     def build_status_message(self, algorithm_name, algorithm_info):
-        payload = {
+        # 获取当前资源使用情况
+        memory_usage = self.get_memory_usage()
+        cpu_usage = self.get_cpu_usage()
+        gpu_usage = self.get_gpu_usage()
+
+        # 构建完整的状态消息
+        status_data = [{
             "name": algorithm_name,
-            **(algorithm_info or {})
-        }
-        # 确保存在network_info字典并添加时间戳
-        network_info = payload.get("network_info", {})
-        network_info["last_update_timestamp"] = int(time.time())
-        payload["network_info"] = network_info
-        return payload
+            "category": algorithm_info.get("category", "内置组件"),
+            "className": algorithm_info.get("class", "协同控制类"),
+            "subcategory": algorithm_info.get("subcategory", "打击算法类"),
+            "version": algorithm_info.get("version", "1.0"),
+            "description": algorithm_info.get("description", "基于狼群智能的协同打击算法，用于多智能体协同打击任务"),
+            "ip": get_local_ip(),
+            "port": algorithm_info.get("network_info", {}).get("port", 8080),
+            "creator": algorithm_info.get("creator", "system"),
+            "network_info": {
+                "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
+                "is_remote": algorithm_info.get("network_info", {}).get("is_remote", False),
+                "cpu_usage": cpu_usage,
+                "gpu_usage": [{'usage': gpu_usage, "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
+                "memory_usage": memory_usage,
+                "last_update_timestamp": datetime.datetime.now().isoformat(),
+                "gpu_new": "",
+            },
+        }]
+
+        return status_data
 
     def send_status_message(self, algorithm_name, algorithm_info):
-        payload = self.build_status_message(algorithm_name, algorithm_info)
+        status_data = self.build_status_message(algorithm_name, algorithm_info)
         try:
             response = self.session.post(
                 self.remote_url,
-                json=payload,
+                json=status_data,
                 headers={'Content-Type': 'application/json', 'Connection': 'close'},
                 timeout=5
             )
