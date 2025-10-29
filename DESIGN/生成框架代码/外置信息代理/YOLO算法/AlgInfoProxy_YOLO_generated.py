@@ -143,8 +143,8 @@ def AlgInfoProxy_YOLO(init_state: list, init_corn: list):
     current_script = os.path.basename(__file__)
 
     # 设置默认参数
-    server_ip = '192.168.1.100'
-    server_port = 12345
+    server_ip = '180.1.80.3'
+    server_port = 8192
     num_experiments = 5
 
     # 生成并发送元数据

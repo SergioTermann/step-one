@@ -17,15 +17,14 @@ from datetime import datetime
 
 def get_local_ip():
     """获取本地IP地址"""
+    # 创建一个临时socket连接
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        # 创建一个临时socket连接
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))  # 连接到外部地址
         local_ip = s.getsockname()[0]
+    finally:
         s.close()
-        return local_ip
-    except Exception:
-        return "127.0.0.1"  # 如果获取失败，返回本地回环地址
+    return local_ip
 
 
 class HTTPStatusReporter:
@@ -33,6 +32,15 @@ class HTTPStatusReporter:
     
     def __init__(self, server_ip='180.1.80.3', server_port=8192):
         """初始化HTTP状态上报器"""
+        self.session = requests.Session()  # 创建HTTP会话
+        self.session.trust_env = False  # 禁用系统代理，避免502网关问题
+        self.session.headers.update({'Connection': 'close'})
+        # 设置更长的连接超时和读取超时
+        self.session.mount('http://', requests.adapters.HTTPAdapter(
+            max_retries=3,
+            pool_connections=1,
+            pool_maxsize=1
+        ))
         self.server_ip = server_ip
         self.server_port = server_port
         self.base_url = f"http://{server_ip}:{server_port}/resource/webSocketOnMessage"
@@ -47,12 +55,12 @@ class HTTPStatusReporter:
     def get_memory_usage(self):
         """获取当前进程内存使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.memory_percent():.2f}%"
+        return f"{process.memory_percent():.2f}"
 
     def get_cpu_usage(self):
         """获取当前进程CPU使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.cpu_percent(interval=1):.2f}%"
+        return f"{process.cpu_percent(interval=1):.2f}"
 
     def get_gpu_usage(self):
         """获取当前GPU使用率"""
@@ -61,9 +69,9 @@ class HTTPStatusReporter:
             handle = pynvml.nvmlDeviceGetHandleByIndex(0)
             utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
             gpu_percent = utilization.gpu
-            return f"{gpu_percent:.2f}%"
+            return f"{gpu_percent:.2f}"
         except:
-            return "0.00%"
+            return "0.00"
     
     def build_status_message(self, algorithm_name, algorithm_info):
         """构建状态消息"""
@@ -87,7 +95,7 @@ class HTTPStatusReporter:
                 "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
                 "is_remote": algorithm_info.get("network_info", {}).get("is_remote", True),
                 "cpu_usage": cpu_usage,
-                "gpu_usage": [{'usage': gpu_usage, "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
+                "gpu_usage": [{'usage': gpu_usage, "index": 0, "name": "GPU-0", "memory_used_mb": 10, "memory_total_mb": 100}],
                 "memory_usage": memory_usage,
                 "last_update_timestamp": datetime.now().isoformat(),
                 "gpu_new": "",
@@ -101,11 +109,11 @@ class HTTPStatusReporter:
         try:
             status_data = self.build_status_message(algorithm_name, algorithm_info)
             if status_data:
-                response = requests.post(
+                response = self.session.post(
                     self.base_url,
                     json=status_data,
-                    headers={'Content-Type': 'application/json', 'Connection': 'close'},
-                    timeout=5
+                    timeout=(15, 30),  # 连接超时15秒，读取超时30秒
+                    headers={'Connection': 'close'}
                 )
                 
                 if response.status_code == 200:
@@ -113,8 +121,10 @@ class HTTPStatusReporter:
                 else:
                     self.log_with_timestamp(f"状态上报失败: HTTP {response.status_code}")
                     
+        except requests.exceptions.RequestException as e:
+            self.log_with_timestamp(f"状态上报时发生网络错误: {e}")
         except Exception as e:
-            self.log_with_timestamp(f"状态上报时出错: {e}")
+            self.log_with_timestamp(f"状态上报时发生未知错误: {e}")
     
     def periodic_report(self, algorithm_name, algorithm_info, interval):
         """定期上报状态"""
@@ -150,13 +160,13 @@ class HTTPStatusReporter:
 def get_memory_usage():
     """获取当前进程内存使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.memory_percent():.2f}%"
+    return f"{process.memory_percent():.2f}"
 
 
 def get_cpu_usage():
     """获取当前进程CPU使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.cpu_percent(interval=1):.2f}%"
+    return f"{process.cpu_percent(interval=1):.2f}"
 
 
 def get_gpu_usage():
@@ -165,7 +175,7 @@ def get_gpu_usage():
     handle = pynvml.nvmlDeviceGetHandleByIndex(0)
     utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
     gpu_percent = utilization.gpu
-    return f"{gpu_percent:.2f}%"
+    return f"{gpu_percent:.2f}"
 
 
 class AlgorithmStatusClient:
@@ -343,6 +353,10 @@ def status_monitoring_thread(client, config_param, algorithm, args):
 
 
 def main():
+    """主函数"""
+    global program_running
+    program_running = True
+    
     parser = argparse.ArgumentParser(description='算法状态发送器')
     parser.add_argument('--server', default='127.0.0.1', help='服务器IP地址')
     parser.add_argument('--port', type=int, default=12345, help='服务器端口')
@@ -452,6 +466,7 @@ def main():
         http_reporter.stop_reporting()
 
         print("程序已正常退出")
+
 
 
 if __name__ == "__main__":

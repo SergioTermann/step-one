@@ -17,12 +17,15 @@ from datetime import datetime
 
 def get_local_ip():
     """获取本地IP地址"""
-    # 创建一个临时socket连接
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("8.8.8.8", 80))  # 连接到外部地址
-    local_ip = s.getsockname()[0]
-    s.close()
-    return local_ip
+    try:
+        # 创建一个临时socket连接
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))  # 连接到外部地址
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "127.0.0.1"  # 如果获取失败，返回本地回环地址
 
 
 class HTTPStatusReporter:
@@ -33,6 +36,12 @@ class HTTPStatusReporter:
         self.session = requests.Session()  # 创建HTTP会话
         self.session.trust_env = False  # 禁用系统代理，避免502网关问题
         self.session.headers.update({'Connection': 'close'})
+        # 设置更长的连接超时和读取超时
+        self.session.mount('http://', requests.adapters.HTTPAdapter(
+            max_retries=3,
+            pool_connections=1,
+            pool_maxsize=1
+        ))
         self.server_ip = server_ip
         self.server_port = server_port
         self.base_url = f"http://{server_ip}:{server_port}/resource/webSocketOnMessage"
@@ -47,76 +56,92 @@ class HTTPStatusReporter:
     def get_memory_usage(self):
         """获取当前进程内存使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.memory_percent():.2f}"
+        return f"{process.memory_percent()}"
 
     def get_cpu_usage(self):
         """获取当前进程CPU使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.cpu_percent(interval=1):.2f}"
+        return f"{process.cpu_percent(interval=1)}"
 
     def get_gpu_usage(self):
         """获取当前GPU使用率"""
-        pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-        gpu_percent = utilization.gpu
-        # index name usage memory_used_mb memory_total_mb
-        return f"{gpu_percent:.2f}"
-
+        try:
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            gpu_percent = utilization.gpu
+            return f"{gpu_percent}"
+        except:
+            return "0"
+    
     def build_status_message(self, algorithm_name, algorithm_info):
         """构建状态消息"""
-        # 获取当前资源使用情况
-        memory_usage = self.get_memory_usage()
-        cpu_usage = self.get_cpu_usage()
-        gpu_usage = self.get_gpu_usage()
-
-        # 构建完整的状态消息
-        status_data = [{
-            "name": algorithm_name,
-            "category": algorithm_info.get("category", "111"),
-            "className": algorithm_info.get("class", "22"),
-            "subcategory": algorithm_info.get("subcategory", "22"),
-            "version": algorithm_info.get("version", "1.0"),
-            "description": algorithm_info.get("description", "22"),
-            "ip": get_local_ip(),
-            "port": algorithm_info.get("network_info", {}).get("port", 8080),
-
-            "creator": algorithm_info.get("creator", "system"),
-            "network_info": {
-                "status": algorithm_info.get("network_info", {}).get("status", "2"),
-                "is_remote": True,
-                "cpu_usage": cpu_usage,
-                "gpu_usage": [{'usage': gpu_usage, "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
-                "memory_usage": memory_usage,
-                "last_update_timestamp": datetime.now().isoformat(),
-                "gpu_new": "",
-            },
-        }]
-
-        return status_data
-
+        try:
+            # 获取当前资源使用情况
+            memory_usage = self.get_memory_usage()
+            cpu_usage = self.get_cpu_usage()
+            gpu_usage = self.get_gpu_usage()
+            
+            # 构建完整的状态消息
+            status_data = {
+                "name": algorithm_name,
+                "ip": get_local_ip(),
+                "port": algorithm_info.get("network_info", {}).get("port", 8080),
+                "category": algorithm_info.get("category", "内置服务"),
+                "class": algorithm_info.get("class", "博弈论类"),
+                "subcategory": algorithm_info.get("subcategory", "微分博弈类"),
+                "version": algorithm_info.get("version", "1.0"),
+                "creator": algorithm_info.get("creator", "system"),
+                "description": algorithm_info.get("description", "微分博弈算法"),
+                "inputs": algorithm_info.get("inputs", []),
+                "outputs": algorithm_info.get("outputs", []),
+                "network_info": {
+                    "port": algorithm_info.get("network_info", {}).get("port", 8080),
+                    "status": algorithm_info.get("network_info", {}).get("status", "运行中")
+                },
+                "resource_usage": {
+                    "memory": memory_usage,
+                    "cpu": cpu_usage,
+                    "gpu": gpu_usage
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            return status_data
+            
+        except Exception as e:
+            self.log_with_timestamp(f"构建状态消息时出错: {e}")
+            return None
+    
     def send_status_message(self, algorithm_name, algorithm_info):
         """发送状态消息"""
-        status_data = self.build_status_message(algorithm_name, algorithm_info)
-
-        if not status_data:
+        try:
+            status_data = self.build_status_message(algorithm_name, algorithm_info)
+            if not status_data:
+                return False
+                
+            # 发送HTTP POST请求
+            response = self.session.post(
+                self.base_url,
+                json=status_data,
+                headers={'Content-Type': 'application/json', 'Connection': 'close'},
+                timeout=(15, 30)  # 连接超时15秒，读取超时30秒
+            )
+            
+            if response.status_code == 200:
+                self.log_with_timestamp(f"成功发送算法 '{algorithm_name}' 的状态信息")
+                return True
+            else:
+                self.log_with_timestamp(f"发送状态失败，HTTP状态码: {response.status_code}")
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            self.log_with_timestamp(f"HTTP请求异常: {e}")
             return False
-
-        # 发送HTTP POST请求
-        response = self.session.post(
-            self.base_url,
-            json=status_data,
-            headers={'Content-Type': 'application/json', 'Connection': 'close'},
-            timeout=10
-        )
-
-        if response.status_code == 200:
-            self.log_with_timestamp(f"成功发送算法 '{algorithm_name}' 的状态信息")
-            return True
-        else:
-            self.log_with_timestamp(f"发送状态失败，HTTP状态码: {response.status_code}")
+        except Exception as e:
+            self.log_with_timestamp(f"发送状态消息时出错: {e}")
             return False
-
+    
     def periodic_report(self, algorithm_name, algorithm_info, interval):
         """定期上报状态"""
         while self.reporting:
@@ -148,44 +173,26 @@ class HTTPStatusReporter:
             self.log_with_timestamp("已停止状态上报")
 
 
-def get_memory_usage():
-    """获取当前进程内存使用率"""
-    process = psutil.Process(os.getpid())
-    return f"{process.memory_percent():.2f}%"
-
-
-def get_cpu_usage():
-    """获取当前进程CPU使用率"""
-    process = psutil.Process(os.getpid())
-    return f"{process.cpu_percent(interval=1):.2f}%"
-
-
-def get_gpu_usage():
-    """获取当前GPU使用率"""
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-    utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-    gpu_percent = utilization.gpu
-    return f"{gpu_percent:.2f}%"
-
-
 class AlgorithmStatusClient:
     def __init__(self, server_ip='127.0.0.1', server_port=12345):
         """初始化算法状态发送客户端"""
         self.server_ip = server_ip
         self.server_port = server_port
-        print('server ip is', server_ip)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send_algorithm_info(self, algorithm_info):
         """发送算法信息到注册服务器"""
-        # 将算法信息转换为JSON字符串
-        data = json.dumps(algorithm_info, ensure_ascii=False).encode('utf-8')
+        try:
+            # 将算法信息转换为JSON字符串
+            data = json.dumps(algorithm_info, ensure_ascii=False).encode('utf-8')
 
-        # 发送数据
-        self.socket.sendto(data, (self.server_ip, self.server_port))
-        print(f"已发送算法 '{algorithm_info.get('name', '未命名')}' 的信息到 {self.server_ip}:{self.server_port}")
-        return True
+            # 发送数据
+            self.socket.sendto(data, (self.server_ip, self.server_port))
+            print(f"已发送算法 '{algorithm_info.get('name', '未命名')}' 的信息到 {self.server_ip}:{self.server_port}")
+            return True
+        except Exception as e:
+            print(f"发送算法信息时出错: {e}")
+            return False
 
     def close(self):
         """关闭socket连接"""
@@ -194,19 +201,25 @@ class AlgorithmStatusClient:
 
 def load_algorithm_from_file(file_path, algorithm_name):
     """从文件中加载指定名称的算法信息"""
+    try:
+        if not os.path.exists(file_path):
+            print(f"错误: 文件 '{file_path}' 不存在")
+            return None
 
-    if not os.path.exists(file_path):
-        print(f"错误: 文件 '{file_path}' 不存在")
+        with open(file_path, 'r', encoding='utf-8') as f:
+            algorithms_data = json.load(f)
+
+        if algorithm_name not in algorithms_data:
+            print(f"错误: 在文件中找不到算法 '{algorithm_name}'")
+            return None
+
+        return algorithms_data[algorithm_name]
+    except json.JSONDecodeError:
+        print(f"错误: 文件 '{file_path}' 不是有效的JSON格式")
         return None
-
-    with open(file_path, 'r', encoding='utf-8') as f:
-        algorithms_data = json.load(f)
-
-    if algorithm_name not in algorithms_data:
-        print(f"错误: 在文件中找不到算法 '{algorithm_name}'")
+    except Exception as e:
+        print(f"加载算法信息时出错: {e}")
         return None
-
-    return algorithms_data[algorithm_name]
 
 
 def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="空闲", is_remote=True):
@@ -339,8 +352,8 @@ def main():
     parser.add_argument('--server', default='127.0.0.1', help='服务器IP地址')
     parser.add_argument('--port', type=int, default=12345, help='服务器端口')
     parser.add_argument('--algo-file', default='algorithm.json', help='算法文件路径')
-    parser.add_argument('--name', default='11', help='11')
-    parser.add_argument('--algo-ip', default='192.168.43.4', help='算法IP地址')
+    parser.add_argument('--name', default='微分博弈算法', help='算法名称')
+    parser.add_argument('--algo-ip', default='192.168.43.3', help='算法IP地址')
     parser.add_argument('--algo-port', type=int, default=8080, help='算法服务端口')
     parser.add_argument('--interval', type=float, default=2.0, help='发送间隔(秒)')
     parser.add_argument('--count', type=int, default=0, help='发送次数(0表示无限发送)')
@@ -351,7 +364,7 @@ def main():
     parser.add_argument('--http-port', type=int, default=8192, help='远程HTTP服务器端口')
 
     args = parser.parse_args()
-    config_param = "{'category': '内置服务', 'class': '认知识别类', 'subcategory': '状态估计类', 'version': '2.0', 'creator': '张三', 'create_time': '2025/2/19 11:11', 'maintainer': '李四', 'update_time': '2025/2/19 13:00', 'description': '扩展卡尔曼滤波是卡尔曼滤波在非线性系统中的扩展应用，通过对非线性函数进行一阶泰勒展开来近似线性化。', 'inputs': [{'name': '初始速度', 'symbol': 'v_0', 'type': 'std::vector<int>', 'dimension': '米每秒', 'description': 'm/s'}, {'name': '初始位置估计', 'symbol': 'x_0', 'type': '向量', 'dimension': '位置', 'description': '系统初始位置估计'}], 'outputs': [{'name': '最优速度估计', 'symbol': 'v_est', 'type': '向量', 'dimension': '米每秒', 'description': '滤波后的最优速度估计'}, {'name': '最优位置估计', 'symbol': 'x_est', 'type': '向量', 'dimension': '位置', 'description': '滤波后的最优位置估计'}, {'name': '最优协方差估计', 'symbol': 'P', 'type': '矩阵', 'dimension': '1', 'description': '状态估计的协方差矩阵'}], 'network_info': {'ip': '127.0.0.1', 'status': '空闲', 'is_remote': False}}"
+    config_param = "{'category': '内置服务', 'class': '自主决策类', 'subcategory': '对抗决策类', 'version': '1.5', 'creator': '刘华', 'create_time': '2025/1/25 16:40', 'maintainer': '张伟', 'update_time': '2025/2/18 11:20', 'description': '微分博弈算法用于求解动态对抗环境下的最优决策，通过求解微分方程组获得纳什均衡解。', 'inputs': [{'name': '无人机初始位置', 'symbol': 'P_0', 'type': '向量', 'dimension': '位置', 'description': '无人机的初始位置坐标'}, {'name': '目标初始位置', 'symbol': 'T_0', 'type': '向量', 'dimension': '位置', 'description': '目标的初始位置坐标'}, {'name': '初始速度', 'symbol': 'V_0', 'type': '向量', 'dimension': '米每秒', 'description': '无人机的初始速度'}, {'name': '策略参数', 'symbol': 'alpha', 'type': '标量', 'dimension': '1', 'description': '博弈中的关键策略参数'}], 'outputs': [{'name': '无人机对抗策略参数', 'symbol': 'strategy_params', 'type': '向量', 'dimension': '1', 'description': '无人机对抗决策的策略参数集'}], 'network_info': {'ip': '127.0.0.1', 'status': '空闲', 'is_remote': False}}"
 
     try:
         config_param = ast.literal_eval(config_param)
@@ -373,13 +386,13 @@ def main():
     algorithm_info = {
         "name": args.name,
         "category": "内置服务",
-        "class": "滤波算法类",
-        "subcategory": "卡尔曼滤波类",
+        "class": "博弈论类",
+        "subcategory": "微分博弈类",
         "version": "1.0",
         "creator": "system",
-        "description": "扩展卡尔曼滤波算法，用于非线性系统状态估计",
-        "inputs": ["状态向量", "观测向量", "控制输入"],
-        "outputs": ["估计状态", "协方差矩阵"],
+        "description": "微分博弈算法，用于多智能体决策优化",
+        "inputs": ["状态向量", "控制输入"],
+        "outputs": ["最优策略", "纳什均衡解"],
         "network_info": {
             "ip": args.algo_ip,
             "port": args.algo_port,
@@ -412,22 +425,38 @@ def main():
     # 启动HTTP状态上报
     http_reporter.start_periodic_reporting(args.name, algorithm_info, args.interval)
 
-    count = 0
-    algorithm.is_running = True
-    while program_running and (args.count == 0 or count < args.count):
-        # 算法执行，这将设置is_running为True
-        algorithm.run()
+    try:
+        count = 0
+        algorithm.is_running = True
+        while program_running and (args.count == 0 or count < args.count):
+            # 算法执行，这将设置is_running为True
+            algorithm.run()
 
-        count += 1
-        if count > 20:
-            algorithm.is_running = False
-        if args.count > 0:
-            print(f"已执行算法 {count}/{args.count} 次")
-        else:
-            print(f"已执行算法 {count} 次")
+            count += 1
+            if count > 20:
+                algorithm.is_running = False
+            if args.count > 0:
+                print(f"已执行算法 {count}/{args.count} 次")
+            else:
+                print(f"已执行算法 {count} 次")
 
-        # 在算法执行之间添加一些间隔
-        time.sleep(args.interval / 2)
+            # 在算法执行之间添加一些间隔
+            time.sleep(args.interval / 2)
+    except Exception as e:
+        print(f"程序执行出错: {e}")
+    finally:
+        # 设置程序状态为不运行
+        program_running = False
+
+        # 发送离线状态
+        offline_info = algorithm_info.copy()
+        offline_info["network_info"]["status"] = "离线"
+        http_reporter.send_status_message(args.name, offline_info)
+        
+        # 停止HTTP状态上报
+        http_reporter.stop_reporting()
+
+        print("程序已正常退出")
 
 
 if __name__ == "__main__":

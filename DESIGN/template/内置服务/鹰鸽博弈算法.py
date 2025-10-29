@@ -13,6 +13,8 @@ import sys
 import threading
 # 导入HTTP状态上报器
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+import requests
+from requests.adapters import HTTPAdapter
 from http_connect import HTTPStatusReporter
 
 def get_local_ip():
@@ -31,22 +33,25 @@ def get_local_ip():
 def get_memory_usage():
     """获取当前进程内存使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.memory_percent():.2f}%"
+    return f"{process.memory_percent()}"
 
 
 def get_cpu_usage():
     """获取当前进程CPU使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.cpu_percent(interval=1):.2f}%"
+    return f"{process.cpu_percent(interval=1)}"
 
 
 def get_gpu_usage():
     """获取当前GPU使用率"""
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-    utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-    gpu_percent = utilization.gpu
-    return f"{gpu_percent:.2f}%"
+    try:
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        gpu_percent = utilization.gpu
+        return f"{gpu_percent}"
+    except:
+        return "0"
 
 
 class AlgorithmStatusClient:
@@ -251,27 +256,23 @@ def main():
     
     # 构建算法信息
     algorithm_info = {
-        "ip": args.algo_ip,
-        "port": args.algo_port,
+        "name": args.algorithm,
         "category": "内置服务",
         "className": "博弈论类", 
         "subcategory": "鹰鸽博弈",
         "version": "1.0",
-        "creator": "system",
         "description": "鹰鸽博弈算法，用于分析竞争策略和资源分配",
-        "inputs": [
-            {"name": "策略空间", "symbol": "strategies", "type": "array", "dimension": 2, "description": "可选策略集合"},
-            {"name": "收益矩阵", "symbol": "payoff_matrix", "type": "matrix", "dimension": 2, "description": "策略收益矩阵"}
-        ],
-        "outputs": [
-            {"name": "均衡策略", "symbol": "equilibrium", "type": "array", "dimension": 1, "description": "纳什均衡策略"},
-            {"name": "期望收益", "symbol": "expected_payoff", "type": "float", "dimension": 1, "description": "期望收益值"}
-        ],
+        "ip": args.algo_ip,
+        "port": args.algo_port,
+        "creator": "system",
         "network_info": {
-            "status": "运行中",
+            "status": "空闲",
             "is_remote": True,
             "cpu_usage": get_cpu_usage(),
-            "memory_usage": get_memory_usage()
+            "memory_usage": get_memory_usage(),
+            "gpu_usage": [{'usage': get_gpu_usage(), "index": 0, "name": "GPU-0", "memory_used_mb": 10, "memory_total_mb": 100}],
+            "last_update_timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "gpu_new": "",
         }
     }
 

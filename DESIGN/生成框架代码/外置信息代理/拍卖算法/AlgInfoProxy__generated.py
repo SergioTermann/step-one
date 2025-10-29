@@ -179,7 +179,7 @@ class AuctionAlgorithm:
     pass
 
 
-def main(server_ip='192.168.1.100', server_port=12345, num_experiments=5):
+def main(server_ip='180.1.80.3', server_port=8192, num_experiments=5):
     """
     主执行函数，包含实验循环和网络通信
 
@@ -249,4 +249,4 @@ def main(server_ip='192.168.1.100', server_port=12345, num_experiments=5):
 
 if __name__ == "__main__":
     # 默认服务器IP和端口，可根据实际情况修改
-    main(server_ip='192.168.1.100', server_port=12345, num_experiments=5)
+    main(server_ip='180.1.80.3', server_port=8192, num_experiments=5)

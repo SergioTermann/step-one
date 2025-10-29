@@ -20,6 +20,15 @@ class HTTPStatusReporter:
     
     def __init__(self, server_ip='180.1.80.3', server_port=8192):
         """初始化HTTP状态上报器"""
+        self.session = requests.Session()  # 创建HTTP会话
+        self.session.trust_env = False  # 禁用系统代理，避免502网关问题
+        self.session.headers.update({'Connection': 'close'})
+        # 设置更长的连接超时和读取超时
+        self.session.mount('http://', requests.adapters.HTTPAdapter(
+            max_retries=3,
+            pool_connections=1,
+            pool_maxsize=1
+        ))
         self.server_ip = server_ip
         self.server_port = server_port
         self.base_url = f"http://{server_ip}:{server_port}/resource/webSocketOnMessage"
@@ -43,29 +52,26 @@ class HTTPStatusReporter:
                 gpu_usage = "0.00%"
             
             # 构建完整的状态消息
-            status_data = {
+            status_data = [{
                 "name": algorithm_name,
-                "ip": get_local_ip(),
-                "port": algorithm_info.get("network_info", {}).get("port", 8080),
                 "category": algorithm_info.get("category", "内置服务"),
-                "class": algorithm_info.get("class", "智能决策类"),
+                "className": algorithm_info.get("class", "智能决策类"),
                 "subcategory": algorithm_info.get("subcategory", "强化学习类"),
                 "version": algorithm_info.get("version", "1.0"),
-                "creator": algorithm_info.get("creator", "system"),
                 "description": algorithm_info.get("description", "深度强化学习算法"),
-                "inputs": algorithm_info.get("inputs", []),
-                "outputs": algorithm_info.get("outputs", []),
+                "ip": get_local_ip(),
+                "port": algorithm_info.get("network_info", {}).get("port", 8080),
+                "creator": algorithm_info.get("creator", "system"),
                 "network_info": {
-                    "port": algorithm_info.get("network_info", {}).get("port", 8080),
-                    "status": algorithm_info.get("network_info", {}).get("status", "运行中")
-                },
-                "resource_usage": {
-                    "memory": memory_usage,
-                    "cpu": cpu_usage,
-                    "gpu": gpu_usage
-                },
-                "timestamp": datetime.datetime.now().isoformat()
-            }
+                    "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
+                    "is_remote": algorithm_info.get("network_info", {}).get("is_remote", True),
+                    "cpu_usage": cpu_usage,
+                    "gpu_usage": [{'usage': gpu_usage, "index": 0, "name": "GPU-0", "memory_used_mb": 10, "memory_total_mb": 100}],
+                    "memory_usage": memory_usage,
+                    "last_update_timestamp": datetime.datetime.now().isoformat(),
+                    "gpu_new": "",
+                }
+            }]
             
             return status_data
             
@@ -81,11 +87,11 @@ class HTTPStatusReporter:
                 return False
                 
             # 发送HTTP POST请求
-            response = requests.post(
+            response = self.session.post(
                 self.base_url,
                 json=status_data,
-                headers={'Content-Type': 'application/json'},
-                timeout=10
+                headers={'Content-Type': 'application/json', 'Connection': 'close'},
+                timeout=(15, 30)
             )
             
             if response.status_code == 200:
@@ -146,25 +152,28 @@ def get_local_ip():
         return "127.0.0.1"  # 如果获取失败，返回本地回环地址
 
 
-def get_memory_usage():
-    """获取当前进程内存使用率"""
-    process = psutil.Process(os.getpid())
-    return f"{process.memory_percent():.2f}%"
+def get_memory_usage(self):
+        """获取当前进程内存使用率"""
+        process = psutil.Process(os.getpid())
+        return f"{process.memory_percent()}"
 
 
 def get_cpu_usage():
     """获取当前进程CPU使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.cpu_percent(interval=1):.2f}%"
+    return f"{process.cpu_percent(interval=1)}"
 
 
 def get_gpu_usage():
     """获取当前GPU使用率"""
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-    utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-    gpu_percent = utilization.gpu
-    return f"{gpu_percent:.2f}%"
+    try:
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        gpu_percent = utilization.gpu
+        return f"{gpu_percent}"
+    except:
+        return "0"
 
 
 class AlgorithmStatusClient:

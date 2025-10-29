@@ -31,75 +31,100 @@ def get_local_ip():
 def get_memory_usage():
     """获取当前进程内存使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.memory_percent():.2f}%"
+    return f"{process.memory_percent()}"
 
 
 def get_cpu_usage():
     """获取当前进程CPU使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.cpu_percent(interval=1):.2f}%"
+    return f"{process.cpu_percent(interval=1)}"
 
 
 def get_gpu_usage():
     """获取当前GPU使用率"""
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-    utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-    gpu_percent = utilization.gpu
-    return f"{gpu_percent:.2f}%"
+    try:
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        gpu_percent = utilization.gpu
+        return f"{gpu_percent}"
+    except:
+        return "0"
 
 
 class HTTPStatusReporter:
-    """基于HTTP的算法状态上报器"""
+    """HTTP状态上报器"""
     
-    def __init__(self, remote_ip='180.1.80.3', remote_port=8192):
-        self.remote_ip = remote_ip
-        self.remote_port = remote_port
-        self.remote_url = f'http://{remote_ip}:{remote_port}/resource/webSocketOnMessage'
-        self.session = requests.Session()
-        self.session.trust_env = False  # 禁用系统代理
+    def __init__(self, server_ip='180.1.80.3', server_port=8192):
+        """初始化HTTP状态上报器"""
+        self.session = requests.Session()  # 创建HTTP会话
+        self.session.trust_env = False  # 禁用系统代理，避免502网关问题
         self.session.headers.update({'Connection': 'close'})
-        self.running = True
+        # 设置更长的连接超时和读取超时
+        self.session.mount('http://', requests.adapters.HTTPAdapter(
+            max_retries=3,
+            pool_connections=1,
+            pool_maxsize=1
+        ))
+        self.server_ip = server_ip
+        self.server_port = server_port
+        self.base_url = f"http://{server_ip}:{server_port}/resource/webSocketOnMessage"
+        self.reporting = False
+        self.report_thread = None
         
     def log_with_timestamp(self, message):
         """带时间戳的日志输出"""
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{timestamp}] {message}")
-        
+
+    def get_gpu_usage(self):
+        """获取当前GPU使用率"""
+        try:
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            gpu_percent = utilization.gpu
+            return f"{gpu_percent}"
+        except:
+            return "0"
+
     def build_status_message(self, algorithm_name, algorithm_info):
         """构建状态消息"""
-        payload = {
+        memory_usage = self.get_memory_usage()
+        cpu_usage = self.get_cpu_usage()
+        gpu_usage = self.get_gpu_usage()
+        
+        status_data = [{
             "name": algorithm_name,
             "category": algorithm_info.get("category", "内置服务"),
-            "class": algorithm_info.get("class", "协同控制类"),
+            "className": algorithm_info.get("class", "协同控制类"),
             "subcategory": algorithm_info.get("subcategory", "优化算法类"),
             "version": algorithm_info.get("version", "1.0"),
+            "description": algorithm_info.get("description", "鸽群优化算法，用于多智能体协同优化"),
+            "ip": get_local_ip(),
+            "port": algorithm_info.get("network_info", {}).get("port", 8080),
             "creator": algorithm_info.get("creator", "system"),
-            "description": algorithm_info.get("description", "鸽群优化算法"),
-            "inputs": algorithm_info.get("inputs", []),
-            "outputs": algorithm_info.get("outputs", []),
             "network_info": {
-                "ip": get_local_ip(),
-                "port": algorithm_info.get("network_info", {}).get("port", 8080),
-                "status": algorithm_info.get("network_info", {}).get("status", "运行中"),
-                "is_remote": False,  # 内置服务
-                "last_update_timestamp": int(time.time()),
-                "cpu_usage": get_cpu_usage(),
-                "memory_usage": get_memory_usage(),
-                "gpu_usage": get_gpu_usage()
-            }
-        }
-        return payload
+                "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
+                "is_remote": algorithm_info.get("network_info", {}).get("is_remote", True),
+                "cpu_usage": cpu_usage,
+                "gpu_usage": [{'usage': gpu_usage, "index": 0, "name": "GPU-0", "memory_used_mb": 10, "memory_total_mb": 100}],
+                "memory_usage": memory_usage,
+                "last_update_timestamp": datetime.now().isoformat(),
+                "gpu_new": "",
+            },
+        }]
+        return status_data
         
     def send_status_message(self, algorithm_name, algorithm_info):
         """发送状态消息"""
         try:
             payload = self.build_status_message(algorithm_name, algorithm_info)
             response = self.session.post(
-                self.remote_url,
+                self.base_url,
                 json=payload,
                 headers={'Content-Type': 'application/json', 'Connection': 'close'},
-                timeout=5
+                timeout=(15, 30)
             )
             self.log_with_timestamp(f"状态上报成功: HTTP {response.status_code}")
             return response.status_code == 200
@@ -107,7 +132,7 @@ class HTTPStatusReporter:
             self.log_with_timestamp(f"状态上报失败: {e}")
             return False
             
-    def start_periodic_reporting(self, algorithm_name, algorithm_info, interval=30):
+    def start_periodic_reporting(self, algorithm_name, algorithm_info, interval=2):
         """启动定期状态上报"""
         def report_loop():
             while self.running:
