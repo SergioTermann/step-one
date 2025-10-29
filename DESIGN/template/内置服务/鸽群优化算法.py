@@ -31,13 +31,13 @@ def get_local_ip():
 def get_memory_usage():
     """获取当前进程内存使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.memory_percent()}"
+    return round(process.memory_percent(), 2)
 
 
 def get_cpu_usage():
     """获取当前进程CPU使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.cpu_percent(interval=1)}"
+    return round(process.cpu_percent(interval=1), 2)
 
 
 def get_gpu_usage():
@@ -47,9 +47,9 @@ def get_gpu_usage():
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
         gpu_percent = utilization.gpu
-        return f"{gpu_percent}"
+        return round(gpu_percent, 2)
     except:
-        return "0"
+        return 0
 
 
 class HTTPStatusReporter:
@@ -71,6 +71,8 @@ class HTTPStatusReporter:
         self.base_url = f"http://{server_ip}:{server_port}/resource/webSocketOnMessage"
         self.reporting = False
         self.report_thread = None
+        # 线程运行标志，控制定期上报循环
+        self.running = False
         
     def log_with_timestamp(self, message):
         """带时间戳的日志输出"""
@@ -84,9 +86,19 @@ class HTTPStatusReporter:
             handle = pynvml.nvmlDeviceGetHandleByIndex(0)
             utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
             gpu_percent = utilization.gpu
-            return f"{gpu_percent}"
+            return round(gpu_percent, 2)
         except:
-            return "0"
+            return 0
+
+    def get_memory_usage(self):
+        """获取当前进程内存使用率"""
+        process = psutil.Process(os.getpid())
+        return round(process.memory_percent(), 2)
+
+    def get_cpu_usage(self):
+        """获取当前进程CPU使用率"""
+        process = psutil.Process(os.getpid())
+        return round(process.cpu_percent(interval=1), 2)
 
     def build_status_message(self, algorithm_name, algorithm_info):
         """构建状态消息"""
@@ -110,7 +122,7 @@ class HTTPStatusReporter:
                 "cpu_usage": cpu_usage,
                 "gpu_usage": [{'usage': gpu_usage, "index": 0, "name": "GPU-0", "memory_used_mb": 10, "memory_total_mb": 100}],
                 "memory_usage": memory_usage,
-                "last_update_timestamp": datetime.now().isoformat(),
+                "last_update_timestamp": datetime.datetime.now().isoformat(),
                 "gpu_new": "",
             },
         }]
@@ -139,8 +151,12 @@ class HTTPStatusReporter:
                 self.send_status_message(algorithm_name, algorithm_info)
                 time.sleep(interval)
                 
+        # 启动循环前设置运行标志
+        self.running = True
         report_thread = threading.Thread(target=report_loop, daemon=True)
         report_thread.start()
+        # 记录线程句柄，便于后续管理
+        self.report_thread = report_thread
         self.log_with_timestamp(f"启动定期状态上报，间隔{interval}秒")
         return report_thread
         

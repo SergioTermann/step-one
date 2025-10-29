@@ -56,12 +56,12 @@ class HTTPStatusReporter:
     def get_memory_usage(self):
         """获取当前进程内存使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.memory_percent()}"
+        return round(process.memory_percent(), 2)
 
     def get_cpu_usage(self):
         """获取当前进程CPU使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.cpu_percent(interval=1)}"
+        return round(process.cpu_percent(interval=1), 2)
 
     def get_gpu_usage(self):
         """获取当前GPU使用率"""
@@ -70,9 +70,9 @@ class HTTPStatusReporter:
             handle = pynvml.nvmlDeviceGetHandleByIndex(0)
             utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
             gpu_percent = utilization.gpu
-            return f"{gpu_percent}"
+            return round(gpu_percent, 2)
         except:
-            return "0"
+            return 0
     
     def build_status_message(self, algorithm_name, algorithm_info):
         """构建状态消息"""
@@ -235,9 +235,9 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
         "status": status,
 
         # 资源使用情况 - 调用您已有的函数
-        "memory_usage": get_memory_usage(),
-        "cpu_usage": get_cpu_usage(),
-        "gpu_usage": get_gpu_usage(),
+        "memory_usage": round(psutil.Process(os.getpid()).memory_percent(), 2),
+        "cpu_usage": round(psutil.Process(os.getpid()).cpu_percent(interval=1), 2),
+        "gpu_usage": round(pynvml.nvmlDeviceGetUtilizationRates(pynvml.nvmlDeviceGetHandleByIndex(0)).gpu, 2),
         "is_remote": is_remote
     }
 
