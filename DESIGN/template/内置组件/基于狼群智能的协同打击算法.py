@@ -101,9 +101,9 @@ def start_server(host='0.0.0.0', port=12345, remote_http_ip='180.1.80.3', remote
             "port": port,
             "status": "空闲",
             "is_remote": False,
-            "cpu_usage": http_reporter.get_cpu_usage(),
-            "gpu_usage": [{'usage': http_reporter.get_gpu_usage(), "index": http_reporter.get_gpu_usage(), "name": http_reporter.get_gpu_usage(), "memory_used_mb": 10, "memory_total_mb": 100}],
-            "memory_usage": http_reporter.get_memory_usage(),
+            "cpu_usage": f"{http_reporter.get_cpu_usage():.2f}",
+            "gpu_usage": [{'usage': f"{http_reporter.get_gpu_usage():.2f}", "index": 0, "name": "GPU-0", "memory_used_mb": 10, "memory_total_mb": 100}],
+            "memory_usage": f"{http_reporter.get_memory_usage():.2f}",
             "last_update_timestamp": datetime.now().isoformat(),
             "gpu_new": "",
         }

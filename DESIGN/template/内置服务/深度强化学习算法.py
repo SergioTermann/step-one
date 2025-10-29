@@ -152,16 +152,16 @@ def get_local_ip():
         return "127.0.0.1"  # 如果获取失败，返回本地回环地址
 
 
-def get_memory_usage(self):
-        """获取当前进程内存使用率"""
-        process = psutil.Process(os.getpid())
-        return f"{process.memory_percent()}"
+def get_memory_usage():
+    """获取当前进程内存使用率"""
+    process = psutil.Process(os.getpid())
+    return process.memory_percent()
 
 
 def get_cpu_usage():
     """获取当前进程CPU使用率"""
     process = psutil.Process(os.getpid())
-    return f"{process.cpu_percent(interval=1)}"
+    return process.cpu_percent(interval=1)
 
 
 def get_gpu_usage():
@@ -170,10 +170,9 @@ def get_gpu_usage():
         pynvml.nvmlInit()
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-        gpu_percent = utilization.gpu
-        return f"{gpu_percent}"
+        return utilization.gpu
     except:
-        return "0"
+        return 0.00
 
 
 class AlgorithmStatusClient:

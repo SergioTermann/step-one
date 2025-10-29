@@ -52,12 +52,12 @@ class HTTPStatusReporter:
     def get_memory_usage(self):
         """获取当前进程内存使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.memory_percent():.2f}"
+        return process.memory_percent()
 
     def get_cpu_usage(self):
         """获取当前进程CPU使用率"""
         process = psutil.Process(os.getpid())
-        return f"{process.cpu_percent(interval=1):.2f}"
+        return process.cpu_percent(interval=1)
 
     def get_gpu_usage(self):
         """获取当前GPU使用率"""
@@ -65,11 +65,9 @@ class HTTPStatusReporter:
             pynvml.nvmlInit()
             handle = pynvml.nvmlDeviceGetHandleByIndex(0)
             utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-            gpu_percent = utilization.gpu
-            return f"{gpu_percent:.2f}"
+            return utilization.gpu
         except:
-            return "0.00"
-            return f"{gpu_percent:.2f}"
+            return 0.00
     
     def build_status_message(self, algorithm_name, algorithm_info):
         """构建状态消息"""

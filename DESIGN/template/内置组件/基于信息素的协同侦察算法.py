@@ -61,10 +61,9 @@ class HTTPStatusReporter:
             pynvml.nvmlInit()
             handle = pynvml.nvmlDeviceGetHandleByIndex(0)
             utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-            gpu_percent = utilization.gpu
-            return gpu_percent
+            return utilization.gpu
         except:
-            return 0
+            return 0.00
     
     def get_local_ip(self):
         """获取本地IP地址"""
