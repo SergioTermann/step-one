@@ -61,18 +61,12 @@ class HTTPStatusReporter:
 
     def get_gpu_usage(self):
         """获取当前GPU使用率"""
-        try:
-            pynvml.nvmlInit()
-            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-            utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-            gpu_percent = utilization.gpu
-            return f"{gpu_percent:.2f}"
-        except:
-            return "0.00"
-            return f"{gpu_percent:.2f}%"
-        except:
-            return "0.00%"
-    
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        gpu_percent = utilization.gpu
+        return f"{gpu_percent:.2f}"
+
     def build_status_message(self, algorithm_name, algorithm_info):
         """构建状态消息"""
         # 获取当前资源使用情况

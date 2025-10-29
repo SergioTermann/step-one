@@ -127,17 +127,8 @@ class HTTPStatusReporter:
                     
         except Exception as e:
             self.log_with_timestamp(f"状态上报时出错: {e}")
-                return True
-            else:
-                self.log_with_timestamp(f"发送状态失败，HTTP状态码: {response.status_code}")
-                return False
-                
-        except requests.exceptions.RequestException as e:
-            self.log_with_timestamp(f"HTTP请求异常: {e}")
-            return False
-        except Exception as e:
-            self.log_with_timestamp(f"发送状态消息时出错: {e}")
-            return False
+            return True
+
     
     def periodic_report(self, algorithm_name, algorithm_info, interval):
         """定期上报状态"""

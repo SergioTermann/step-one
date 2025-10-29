@@ -68,8 +68,6 @@ class HTTPStatusReporter:
             return f"{gpu_percent:.2f}"
         except:
             return "0.00"
-        except:
-            return "0.00%"
     
     def build_status_message(self, algorithm_name, algorithm_info):
         """构建状态消息"""

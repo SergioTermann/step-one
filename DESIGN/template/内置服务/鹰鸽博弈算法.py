@@ -265,16 +265,37 @@ def main():
         "ip": args.algo_ip,
         "port": args.algo_port,
         "creator": "system",
+    }
+    
+    # 获取当前资源使用情况
+    memory_usage = get_memory_usage()
+    cpu_usage = get_cpu_usage()
+    gpu_usage = get_gpu_usage()
+    
+    # 构建完整的状态消息
+    status_data = [{
+        "name": args.algorithm,
+        "category": "内置服务",
+        "className": "博弈论类",
+        "subcategory": "鹰鸽博弈",
+        "version": "1.0",
+        "description": "鹰鸽博弈算法，用于分析竞争策略和资源分配",
+        "ip": args.algo_ip,
+        "port": args.algo_port,
+        "creator": "system",
         "network_info": {
             "status": "空闲",
             "is_remote": True,
-            "cpu_usage": get_cpu_usage(),
-            "memory_usage": get_memory_usage(),
-            "gpu_usage": [{'usage': get_gpu_usage(), "index": 0, "name": "GPU-0", "memory_used_mb": 10, "memory_total_mb": 100}],
+            "cpu_usage": cpu_usage,
+            "gpu_usage": [{'usage': gpu_usage, "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
+            "memory_usage": memory_usage,
             "last_update_timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "gpu_new": "",
         }
-    }
+    }]
+    
+    # 将状态数据添加到算法信息中
+    algorithm_info["status_data"] = status_data
 
     try:
         # 添加GPU使用率（如果可用）
