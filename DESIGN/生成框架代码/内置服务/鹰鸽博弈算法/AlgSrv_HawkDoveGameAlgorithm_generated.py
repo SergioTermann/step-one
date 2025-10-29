@@ -119,15 +119,15 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
 
         # 资源使用情况 - 调用您已有的函数
         "memory_usage": f"{get_memory_usage():.2f}",
-        "cpu_usage": f"{get_cpu_usage():.2f}",
-        "gpu_usage": f"{get_gpu_usage():.2f}",
+        "cpu_usage": get_cpu_usage(),
+        "gpu_usage": get_gpu_usage(),
         "is_remote": is_remote
     }
 
     return algorithm_info
 
 
-class TemplateClass:
+class AlgSrv_HawkDoveGameAlgorithm:
     def __init__(self, initial_state=None, initial_covariance=None, process_noise=None, measurement_noise=None):
         # 为了兼容性添加默认参数
         if initial_state is None:
@@ -285,8 +285,8 @@ def main():
         "network_info": {
             "status": "空闲",
             "is_remote": True,
-            "cpu_usage": f"{cpu_usage:.2f}",
-            "gpu_usage": [{'usage': f"{gpu_usage:.2f}", "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
+            "cpu_usage": cpu_usage,
+            "gpu_usage": [{'usage': gpu_usage, "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
             "memory_usage": f"{memory_usage:.2f}",
             "last_update_timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "gpu_new": "",
@@ -306,7 +306,7 @@ def main():
     report_thread = http_reporter.start_periodic_reporting(args.algorithm, algorithm_info, args.interval)
     
     # 创建算法实例
-    algorithm = TemplateClass()
+    algorithm = AlgSrv_HawkDoveGameAlgorithm()
     
     try:
         # 主算法循环

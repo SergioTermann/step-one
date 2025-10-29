@@ -11,11 +11,9 @@ import ast
 import signal
 import sys
 import threading
-# 导入HTTP状态上报器
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 import requests
-from requests.adapters import HTTPAdapter
-from http_connect import HTTPStatusReporter
+import datetime
+
 
 def get_local_ip():
     """获取本地IP地址"""
@@ -48,9 +46,123 @@ def get_gpu_usage():
         pynvml.nvmlInit()
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-        return round(utilization.gpu, 2)
+        gpu_percent = utilization.gpu
+        return round(gpu_percent, 2)
     except:
-        return 0.00
+        return 0
+
+
+class HTTPStatusReporter:
+    """HTTP状态上报器"""
+    
+    def __init__(self, server_ip='180.1.80.3', server_port=8192):
+        """初始化HTTP状态上报器"""
+        self.session = requests.Session()  # 创建HTTP会话
+        self.session.trust_env = False  # 禁用系统代理，避免502网关问题
+        self.session.headers.update({'Connection': 'close'})
+        # 设置更长的连接超时和读取超时
+        self.session.mount('http://', requests.adapters.HTTPAdapter(
+            max_retries=3,
+            pool_connections=1,
+            pool_maxsize=1
+        ))
+        self.server_ip = server_ip
+        self.server_port = server_port
+        self.base_url = f"http://{server_ip}:{server_port}/resource/webSocketOnMessage"
+        self.reporting = False
+        self.report_thread = None
+        # 线程运行标志，控制定期上报循环
+        self.running = False
+        
+    def log_with_timestamp(self, message):
+        """带时间戳的日志输出"""
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{timestamp}] {message}")
+
+    def get_gpu_usage(self):
+        """获取当前GPU使用率"""
+        try:
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            gpu_percent = utilization.gpu
+            return round(gpu_percent, 2)
+        except:
+            return 0
+
+    def get_memory_usage(self):
+        """获取当前进程内存使用率"""
+        process = psutil.Process(os.getpid())
+        return round(process.memory_percent(), 2)
+
+    def get_cpu_usage(self):
+        """获取当前进程CPU使用率"""
+        process = psutil.Process(os.getpid())
+        return round(process.cpu_percent(interval=1), 2)
+
+    def build_status_message(self, algorithm_name, algorithm_info):
+        """构建状态消息"""
+        memory_usage = self.get_memory_usage()
+        cpu_usage = self.get_cpu_usage()
+        gpu_usage = self.get_gpu_usage()
+        
+        status_data = [{
+            "name": algorithm_name,
+            "category": algorithm_info.get("category", "内置服务"),
+            "className": algorithm_info.get("class", "协同控制类"),
+            "subcategory": algorithm_info.get("subcategory", "优化算法类"),
+            "version": algorithm_info.get("version", "1.0"),
+            "description": algorithm_info.get("description", "鸽群优化算法，用于多智能体协同优化"),
+            "ip": get_local_ip(),
+            "port": algorithm_info.get("network_info", {}).get("port", 8080),
+            "creator": algorithm_info.get("creator", "system"),
+            "network_info": {
+                "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
+                "is_remote": algorithm_info.get("network_info", {}).get("is_remote", True),
+                "cpu_usage": cpu_usage,
+                "gpu_usage": [{'usage': gpu_usage, "index": 0, "name": "GPU-0", "memory_used_mb": 10, "memory_total_mb": 100}],
+                "memory_usage": memory_usage,
+                "last_update_timestamp": datetime.datetime.now().isoformat(),
+                "gpu_new": "",
+            },
+        }]
+        return status_data
+        
+    def send_status_message(self, algorithm_name, algorithm_info):
+        """发送状态消息"""
+        try:
+            payload = self.build_status_message(algorithm_name, algorithm_info)
+            response = self.session.post(
+                self.base_url,
+                json=payload,
+                headers={'Content-Type': 'application/json', 'Connection': 'close'},
+                timeout=(15, 30)
+            )
+            self.log_with_timestamp(f"状态上报成功: HTTP {response.status_code}")
+            return response.status_code == 200
+        except requests.exceptions.RequestException as e:
+            self.log_with_timestamp(f"状态上报失败: {e}")
+            return False
+            
+    def start_periodic_reporting(self, algorithm_name, algorithm_info, interval=2):
+        """启动定期状态上报"""
+        def report_loop():
+            while self.running:
+                self.send_status_message(algorithm_name, algorithm_info)
+                time.sleep(interval)
+                
+        # 启动循环前设置运行标志
+        self.running = True
+        report_thread = threading.Thread(target=report_loop, daemon=True)
+        report_thread.start()
+        # 记录线程句柄，便于后续管理
+        self.report_thread = report_thread
+        self.log_with_timestamp(f"启动定期状态上报，间隔{interval}秒")
+        return report_thread
+        
+    def stop_reporting(self):
+        """停止状态上报"""
+        self.running = False
 
 
 class AlgorithmStatusClient:
@@ -118,16 +230,16 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
         "status": status,
 
         # 资源使用情况 - 调用您已有的函数
-        "memory_usage": f"{get_memory_usage():.2f}",
-        "cpu_usage": f"{get_cpu_usage():.2f}",
-        "gpu_usage": f"{get_gpu_usage():.2f}",
+        "memory_usage": get_memory_usage(),
+        "cpu_usage": get_cpu_usage(),
+        "gpu_usage": get_gpu_usage(),
         "is_remote": is_remote
     }
 
     return algorithm_info
 
 
-class TemplateClass:
+class AlgSrv_Notspecified:
     def __init__(self, initial_state=None, initial_covariance=None, process_noise=None, measurement_noise=None):
         # 为了兼容性添加默认参数
         if initial_state is None:
@@ -230,11 +342,17 @@ def status_monitoring_thread(client, config_param, algorithm, args):
 def main():
     global program_running
 
-    parser = argparse.ArgumentParser(description='鹰鸽博弈算法 - HTTP状态上报版本')
-    parser.add_argument('--algorithm', default='鹰鸽博弈算法', help='算法名称')
+    parser = argparse.ArgumentParser(description='鸽群优化算法 - HTTP状态上报版本')
+    parser.add_argument('--server', default='127.0.0.1', help='服务器IP地址')
+    parser.add_argument('--port', type=int, default=12345, help='服务器端口')
+    parser.add_argument('--file', default='algorithms.json', help='存储算法信息的JSON文件路径')
+    parser.add_argument('--algorithm', default='鸽群优化算法', help='算法名称')
     parser.add_argument('--algo_ip', default=None, help='算法IP地址')
     parser.add_argument('--algo_port', type=int, default=8080, help='算法端口')
     parser.add_argument('--interval', type=int, default=30, help='状态上报间隔（秒）')
+    parser.add_argument('--remote', type=ast.literal_eval, default=False, help='是否为远程算法')
+    parser.add_argument('--remote_ip', default='180.1.80.3', help='远程HTTP服务器IP')
+    parser.add_argument('--remote_port', type=int, default=8192, help='远程HTTP服务器端口')
 
     args = parser.parse_args()
 
@@ -246,67 +364,41 @@ def main():
     if args.algo_ip is None:
         args.algo_ip = get_local_ip()
 
-    print(f"启动鹰鸽博弈算法")
+    print(f"启动鸽群优化算法")
     print(f"算法地址: {args.algo_ip}:{args.algo_port}")
+    print(f"远程服务器: {args.remote_ip}:{args.remote_port}")
     print(f"状态上报间隔: {args.interval}秒")
 
     # 创建HTTP状态上报器
-    http_reporter = HTTPStatusReporter()
+    http_reporter = HTTPStatusReporter(args.remote_ip, args.remote_port)
     
     # 构建算法信息
     algorithm_info = {
-        "name": args.algorithm,
         "category": "内置服务",
-        "className": "博弈论类", 
-        "subcategory": "鹰鸽博弈",
+        "class": "协同控制类", 
+        "subcategory": "优化算法类",
         "version": "1.0",
-        "description": "鹰鸽博弈算法，用于分析竞争策略和资源分配",
-        "ip": args.algo_ip,
-        "port": args.algo_port,
         "creator": "system",
-    }
-    
-    # 获取当前资源使用情况
-    memory_usage = get_memory_usage()
-    cpu_usage = get_cpu_usage()
-    gpu_usage = get_gpu_usage()
-    
-    # 构建完整的状态消息
-    status_data = [{
-        "name": args.algorithm,
-        "category": "内置服务",
-        "className": "博弈论类",
-        "subcategory": "鹰鸽博弈",
-        "version": "1.0",
-        "description": "鹰鸽博弈算法，用于分析竞争策略和资源分配",
-        "ip": args.algo_ip,
-        "port": args.algo_port,
-        "creator": "system",
+        "description": "鸽群优化算法，用于多目标优化问题求解",
+        "inputs": [
+            {"name": "目标函数", "symbol": "objective", "type": "function", "dimension": 1, "description": "待优化的目标函数"},
+            {"name": "搜索空间", "symbol": "bounds", "type": "array", "dimension": 2, "description": "变量的上下界"}
+        ],
+        "outputs": [
+            {"name": "最优解", "symbol": "best_solution", "type": "array", "dimension": 1, "description": "找到的最优解"},
+            {"name": "最优值", "symbol": "best_value", "type": "float", "dimension": 1, "description": "最优解对应的函数值"}
+        ],
         "network_info": {
-            "status": "空闲",
-            "is_remote": True,
-            "cpu_usage": f"{cpu_usage:.2f}",
-            "gpu_usage": [{'usage': f"{gpu_usage:.2f}", "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
-            "memory_usage": f"{memory_usage:.2f}",
-            "last_update_timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            "gpu_new": "",
+            "port": args.algo_port,
+            "status": "运行中"
         }
-    }]
-    
-    # 将状态数据添加到算法信息中
-    algorithm_info["status_data"] = status_data
-
-    try:
-        # 添加GPU使用率（如果可用）
-        algorithm_info["network_info"]["gpu_usage"] = get_gpu_usage()
-    except:
-        pass
+    }
 
     # 启动定期状态上报
     report_thread = http_reporter.start_periodic_reporting(args.algorithm, algorithm_info, args.interval)
     
     # 创建算法实例
-    algorithm = TemplateClass()
+    algorithm = AlgSrv_Notspecified()
     
     try:
         # 主算法循环

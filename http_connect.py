@@ -54,12 +54,12 @@ class HTTPStatusReporter:
     def get_memory_usage(self):
         """获取当前进程内存使用率"""
         process = psutil.Process(os.getpid())
-        return process.memory_percent()
+        return round(process.memory_percent(), 2)
 
     def get_cpu_usage(self):
         """获取当前进程CPU使用率"""
         process = psutil.Process(os.getpid())
-        return process.cpu_percent(interval=1)
+        return round(process.cpu_percent(interval=1), 2)
 
     def get_gpu_usage(self):
         """获取当前GPU使用率"""
@@ -68,9 +68,9 @@ class HTTPStatusReporter:
             handle = pynvml.nvmlDeviceGetHandleByIndex(0)
             utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
             gpu_percent = utilization.gpu
-            return gpu_percent
+            return round(gpu_percent, 2)
         except:
-            return 0
+            return 0.0
 
     def build_status_message(self, algorithm_name, algorithm_info):
         # 获取当前资源使用情况
@@ -92,9 +92,9 @@ class HTTPStatusReporter:
             "network_info": {
                 "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
                 "is_remote": algorithm_info.get("network_info", {}).get("is_remote", False),
-                "cpu_usage": cpu_usage,
-                "gpu_usage": [{'usage': gpu_usage, "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
-                "memory_usage": memory_usage,
+                "cpu_usage": f"{cpu_usage:.2f}",
+                "gpu_usage": [{'usage': f"{gpu_usage:.2f}", "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
+                "memory_usage": f"{memory_usage:.2f}",
                 "last_update_timestamp": datetime.datetime.now().isoformat(),
                 "gpu_new": "",
             },
