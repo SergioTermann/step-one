@@ -312,61 +312,6 @@
             "is_remote": false
         }
     },
-    "一致性编队算法": {
-        "category": "内置组件",
-        "class": "协同控制类",
-        "subcategory": "编队控制类",
-        "version": "1.4",
-        "creator": "吴刚",
-        "create_time": "2025/1/22 13:10",
-        "maintainer": "吴刚",
-        "update_time": "2025/2/22 10:45",
-        "description": "一致性编队算法基于一致性理论，实现多无人机系统的协同编队控制，保持预定的几何构型。",
-        "inputs": [
-            {
-                "name": "无人机集群期望形状",
-                "symbol": "F",
-                "type": "矩阵",
-                "dimension": "1",
-                "description": "编队的相对位置构型"
-            },
-            {
-                "name": "领航者参考轨迹",
-                "symbol": "Tr",
-                "type": "函数",
-                "dimension": "1",
-                "description": "领航者的时变参考轨迹"
-            },
-            {
-                "name": "无人机初始状态",
-                "symbol": "X_0",
-                "type": "矩阵",
-                "dimension": "米每秒",
-                "description": "无人机群的初始位置和速度状态"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "编队位置信息",
-                "symbol": "formation_pos",
-                "type": "矩阵",
-                "dimension": "位置",
-                "description": "编队中各无人机的位置坐标"
-            },
-            {
-                "name": "编队位置误差",
-                "symbol": "formation_error",
-                "type": "标量",
-                "dimension": "米",
-                "description": "编队整体的位置误差"
-            }
-        ],
-        "network_info": {
-            "ip": "127.0.0.1",
-            "status": "空闲",
-            "is_remote": false
-        }
-    },
     "基于信息素的协同侦察算法": {
         "category": "内置组件",
         "class": "协同控制类",
@@ -678,5 +623,63 @@
             "gpu_usage": "0.00%",
             "is_remote": true
         }
+    },
+    "一致性编队算法": {
+        "category": "内置组件",
+        "class": "协同控制类",
+        "subcategory": "编队控制类",
+        "version": "1.4",
+        "creator": "吴刚",
+        "create_time": "2025/1/22 13:10",
+        "maintainer": "吴刚",
+        "update_time": "2025-10-30 11:22:03",
+        "description": "一致性编队算法基于一致性理论，实现多无人机系统的协同编队控制，保持预定的几何构型。",
+        "inputs": [
+            {
+                "name": "无人机集群期望形状",
+                "symbol": "F",
+                "type": "矩阵",
+                "dimension": "1",
+                "description": "编队的相对位置构型"
+            },
+            {
+                "name": "领航者参考轨迹",
+                "symbol": "Tr",
+                "type": "函数",
+                "dimension": "1",
+                "description": "领航者的时变参考轨迹"
+            },
+            {
+                "name": "无人机初始状态",
+                "symbol": "X_0",
+                "type": "矩阵",
+                "dimension": "米每秒",
+                "description": "无人机群的初始位置和速度状态"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "编队位置信息",
+                "symbol": "formation_pos",
+                "type": "矩阵",
+                "dimension": "位置",
+                "description": "编队中各无人机的位置坐标"
+            },
+            {
+                "name": "编队位置误差",
+                "symbol": "formation_error",
+                "type": "标量",
+                "dimension": "米",
+                "description": "编队整体的位置误差"
+            }
+        ],
+        "network_info": {
+            "ip": "127.0.0.1",
+            "status": "空闲",
+            "is_remote": false
+        },
+        "name": "一致性编队算法",
+        "english_name": "",
+        "new_algo_name": ""
     }
 }
