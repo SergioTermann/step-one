@@ -13,6 +13,7 @@ import subprocess
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pynvml
+import requests
 from typing import Optional, Dict, Tuple
 
 # 全局配置
@@ -690,22 +691,48 @@ class MonitoringPlatform:
         # else:
         #    messagebox.showwarning("警告", f"无权限终止外部算法{algorithm_name}")
 
+    def send_terminate_signal(self, ip, port, algorithm_name):
+        """向算法模型IP地址发送结束信息"""
+        try:
+            # 构建结束信息
+            terminate_data = {
+                "action": "terminate",
+                "algorithm_name": algorithm_name,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            # 发送结束信息
+            url = f"http://{ip}:{port}/terminate"
+            response = requests.post(url, json=terminate_data, timeout=3)
+            
+            if response.status_code == 200:
+                self.log_message(f"成功向 {ip}:{port} 发送结束信号")
+                return True
+            else:
+                self.log_message(f"向 {ip}:{port} 发送结束信号失败: {response.status_code}")
+                return False
+        except Exception as e:
+            self.log_message(f"发送结束信号时出错: {e}")
+            return False
+            
     def terminate_algorithm_process(self, algorithm_name, port) -> bool:
         """终止算法进程"""
         for instance_id, instance in list(self.algorithm_instances.items()):
             if (str(instance.get('port')) == str(port) and
                     instance.get('algorithm_name') == algorithm_name and
                     instance['status'] in ["调用", "空闲"]):
-                # try:
+                # 获取IP地址
+                ip = instance.get('ip', None)
+                if ip:
+                    # 发送结束信号
+                    self.send_terminate_signal(ip, port, algorithm_name)
+                
+                # 终止进程
                 instance['process'].terminate()
                 instance['process'].wait(timeout=3)
                 instance['status'] = "离线"
                 del self.algorithm_instances[instance_id]
                 return True
-            # except Exception as e:
-            #    messagebox.showerror("终止失败", f"无法终止{algorithm_name}")
-            #    print(f"{e}")
-            #    return False
         return False
 
     def start_status_monitor(self):

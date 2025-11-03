@@ -1,59 +1,4 @@
 {
-    "扩展卡尔曼滤波算法": {
-        "category": "内置服务",
-        "class": "认知识别类",
-        "subcategory": "状态估计类",
-        "version": "2.0",
-        "creator": "张三",
-        "create_time": "2025/2/19 11:11",
-        "maintainer": "李四",
-        "update_time": "2025/2/19 13:00",
-        "description": "扩展卡尔曼滤波是卡尔曼滤波在非线性系统中的扩展应用，通过对非线性函数进行一阶泰勒展开来近似线性化。",
-        "inputs": [
-            {
-                "name": "初始速度",
-                "symbol": "v_0",
-                "type": "std::vector<int>",
-                "dimension": "米每秒",
-                "description": "m/s"
-            },
-            {
-                "name": "初始位置估计",
-                "symbol": "x_0",
-                "type": "向量",
-                "dimension": "位置",
-                "description": "系统初始位置估计"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "最优速度估计",
-                "symbol": "v_est",
-                "type": "向量",
-                "dimension": "米每秒",
-                "description": "滤波后的最优速度估计"
-            },
-            {
-                "name": "最优位置估计",
-                "symbol": "x_est",
-                "type": "向量",
-                "dimension": "位置",
-                "description": "滤波后的最优位置估计"
-            },
-            {
-                "name": "最优协方差估计",
-                "symbol": "P",
-                "type": "矩阵",
-                "dimension": "1",
-                "description": "状态估计的协方差矩阵"
-            }
-        ],
-        "network_info": {
-            "ip": "127.0.0.1",
-            "status": "空闲",
-            "is_remote": false
-        }
-    },
     "K_means算法": {
         "category": "内置服务",
         "class": "认知识别类",
@@ -679,6 +624,64 @@
             "is_remote": false
         },
         "name": "一致性编队算法",
+        "english_name": "",
+        "new_algo_name": ""
+    },
+    "扩展卡尔曼滤波算法": {
+        "category": "内置服务",
+        "class": "认知识别类",
+        "subcategory": "状态估计类",
+        "version": "2.0",
+        "creator": "张三",
+        "create_time": "2025/2/19 11:11",
+        "maintainer": "李四",
+        "update_time": "2025-11-03 14:25:55",
+        "description": "扩展卡尔曼滤波是卡尔曼滤波在非线性系统中的扩展应用，通过对非线性函数进行一阶泰勒展开来近似线性化。",
+        "inputs": [
+            {
+                "name": "初始速度",
+                "symbol": "v_0",
+                "type": "std::vector<int>",
+                "dimension": "米每秒",
+                "description": "m/s"
+            },
+            {
+                "name": "初始位置估计",
+                "symbol": "x_0",
+                "type": "向量",
+                "dimension": "位置",
+                "description": "系统初始位置估计"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "最优速度估计",
+                "symbol": "v_est",
+                "type": "向量",
+                "dimension": "米每秒",
+                "description": "滤波后的最优速度估计"
+            },
+            {
+                "name": "最优位置估计",
+                "symbol": "x_est",
+                "type": "向量",
+                "dimension": "位置",
+                "description": "滤波后的最优位置估计"
+            },
+            {
+                "name": "最优协方差估计",
+                "symbol": "P",
+                "type": "矩阵",
+                "dimension": "1",
+                "description": "状态估计的协方差矩阵"
+            }
+        ],
+        "network_info": {
+            "ip": "127.0.0.1",
+            "status": "空闲",
+            "is_remote": false
+        },
+        "name": "扩展卡尔曼滤波算法",
         "english_name": "",
         "new_algo_name": ""
     }

@@ -385,6 +385,8 @@ def main():
     parser.add_argument('--http-server', default='180.1.80.3', help='HTTP状态上报服务器IP地址')
     parser.add_argument('--http-port', type=int, default=8192, help='HTTP状态上报服务器端口')
     parser.add_argument('--report-interval', type=int, default=30, help='HTTP状态上报间隔(秒)')
+    # 添加终止服务器支持
+    parser.add_argument('--terminate-port', type=int, default=9999, help='终止服务器端口')
 
     args = parser.parse_args()
     config_param = "${SPECIAL_PARAM}"
@@ -491,4 +493,21 @@ def main():
 
 
 if __name__ == "__main__":
+    # 启动终止服务器
+
+    parser = argparse.ArgumentParser(description='临时解析器获取终止端口')
+    parser.add_argument('--terminate-port', type=int, default=9999, help='终止服务器端口')
+    args, _ = parser.parse_known_args()
+    print(f"终止服务器端口: {args.terminate_port}")
+
+
+    from process_terminator import get_terminator, register_current_process
+    # 获取算法名称作为进程编号
+    process_number = args.name if hasattr(args, 'name') else os.path.basename(__file__).split('.')[0]
+    # 启动进程终止服务
+    terminator = get_terminator(port=args.terminate_port if hasattr(args, 'terminate_port') else 9999)
+    # 注册当前进程
+    register_current_process(process_number)
+    print(f"已启动进程终止HTTP服务，进程编号: {process_number}")
+    
     main()

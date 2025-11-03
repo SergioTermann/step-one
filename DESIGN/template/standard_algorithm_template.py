@@ -17,6 +17,7 @@ import sys
 import threading
 import requests
 from datetime import datetime
+from flask import Flask, request, jsonify
 
 
 def get_local_ip():
@@ -273,6 +274,35 @@ def send_offline_status(client, algorithm_info, algo_ip, algo_port, is_remote):
         print("已发送离线状态")
 
 
+class TerminateServer:
+    """终止服务器类，用于接收终止指令"""
+    
+    def __init__(self):
+        """初始化终止服务器"""
+        self.app = Flask("TerminateServer")
+        self.server_thread = None
+        
+        @self.app.route('/terminate', methods=['POST'])
+        def terminate_handler():
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 收到终止指令，正在安全关闭...")
+            threading.Thread(target=self._exit_process).start()
+            return jsonify({"status": "success", "message": "终止信号已接收"}), 200
+    
+    def _exit_process(self):
+        """延迟退出进程，确保响应能够返回"""
+        time.sleep(1)
+        os._exit(0)
+    
+    def start(self, port=8081):
+        """启动终止服务监听"""
+        self.server_thread = threading.Thread(
+            target=lambda: self.app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False),
+            daemon=True
+        )
+        self.server_thread.start()
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 终止指令监听服务已启动在端口: {port}")
+
+
 def main():
     """主函数 - 标准的算法启动流程"""
     parser = argparse.ArgumentParser(description='标准算法模板')
@@ -287,8 +317,14 @@ def main():
     # 添加HTTP服务器相关参数
     parser.add_argument('--http-server', default='180.1.80.3', help='远程HTTP服务器IP地址')
     parser.add_argument('--http-port', type=int, default=8192, help='远程HTTP服务器端口')
+    # 添加终止服务器端口参数
+    parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务监听端口')
 
     args = parser.parse_args()
+    
+    # 启动终止服务监听
+    terminate_server = TerminateServer()
+    terminate_server.start(port=args.terminate_port)
     
     # 默认配置参数 - 具体算法应该修改这些参数
     config_param = {
@@ -382,4 +418,107 @@ def main():
 
 
 if __name__ == "__main__":
+    # 启动终止服务器
+    parser = argparse.ArgumentParser(description='Temporary parser to get termination port')
+    parser.add_argument('--terminate-port', type=int, default=9999, help='Termination server port')
+    args, _ = parser.parse_known_args()
+    
+    # Inline implementation of add_terminate_support
+    def add_terminate_support(port=9999):
+        """Add termination support to the current process"""
+        import threading
+        import socket
+        import json
+        import signal
+        import time
+        import os
+        
+        class ProcessTerminator:
+            def __init__(self, port=9999):
+                self.port = port
+                self.server_thread = None
+                
+            def start(self):
+                """Start the termination server"""
+                self.server_thread = threading.Thread(target=self._run_server, daemon=True)
+                self.server_thread.start()
+                return self.server_thread
+                
+            def _run_server(self):
+                """Run the termination server"""
+                server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                server_socket.bind(('0.0.0.0', self.port))
+                server_socket.listen(5)
+                print(f"Termination server started on port {self.port}")
+                
+                while True:
+                    client_socket, addr = server_socket.accept()
+                    data = client_socket.recv(1024).decode('utf-8')
+                    if data:
+                        request = json.loads(data)
+                        if request.get('action') == 'terminate':
+                            print("Received termination request, shutting down...")
+                            client_socket.send(json.dumps({"status": "success"}).encode('utf-8'))
+                            client_socket.close()
+                            time.sleep(1)
+                            os._exit(0)
+                    client_socket.close()
+        
+        # Start the termination server
+        terminator = ProcessTerminator(port=port)
+        terminator.start()
+        
+        # Register signal handlers
+        def signal_handler(sig, frame):
+            print("Received termination signal, shutting down...")
+            os._exit(0)
+            
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+    
+    # Call the inline implementation
+    add_terminate_support(port=args.terminate_port)
+    print(f"Termination server started on port: {args.terminate_port}")
+
+    # 进程终止HTTP服务相关功能
+    class AlgorithmHttpServer:
+        def __init__(self, port=9999):
+            self.port = port
+            self.server_thread = None
+            
+        def start(self):
+            self.server_thread = threading.Thread(target=self._run_server, daemon=True)
+            self.server_thread.start()
+            return self
+            
+        def _run_server(self):
+            from flask import Flask, request, jsonify
+            app = Flask("AlgorithmHttpServer")
+            
+            @app.route('/terminate', methods=['POST'])
+            def terminate():
+                print("Received HTTP termination request, shutting down...")
+                threading.Thread(target=lambda: (time.sleep(1), os._exit(0))).start()
+                return jsonify({"status": "success"})
+                
+            app.run(host='0.0.0.0', port=self.port, debug=False, use_reloader=False)
+    
+    def get_terminator(port=9999):
+        """Get process terminator instance"""
+        http_server = AlgorithmHttpServer(port=port)
+        http_server.start()
+        return http_server
+        
+    def register_current_process(process_number):
+        """Register current process"""
+        print(f"Process registered with number: {process_number}")
+    
+    # 启动进程终止服务
+    process_number = args.name if hasattr(args, 'name') else os.path.basename(__file__).split('.')[0]
+    terminator = get_terminator(port=args.terminate_port if hasattr(args, 'terminate_port') else 9999)
+    # 注册当前进程
+    register_current_process(process_number)
+    print(f"已启动进程终止HTTP服务，进程编号: {process_number}")
+
     main()

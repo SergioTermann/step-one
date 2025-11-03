@@ -297,6 +297,248 @@ class AlgorithmIntegrationGUI:
         generated_code = re.sub(r'ekf\s*=\s*TemplateFunc', f'ekf = {versioned_name}', generated_code)
 
         generated_code = re.sub(r'\${SPECIAL_PARAM}', str(algo_data), generated_code)
+        
+        # 添加HTTP服务代码
+        http_service_code = """
+# 导入HTTP服务模块
+import os
+import sys
+import argparse
+import threading
+from flask import Flask, request, jsonify
+
+# HTTP服务类
+class AlgorithmHttpServer:
+    def __init__(self, port=8080):
+        self.app = Flask("AlgorithmHttpServer")
+        self.port = port
+        self.server_thread = None
+        
+        # 注册API路由
+        @self.app.route('/status', methods=['GET'])
+        def get_status():
+            return jsonify({
+                "status": "running",
+                "algorithm": os.path.basename(__file__),
+                "pid": os.getpid()
+            })
+        
+        @self.app.route('/terminate', methods=['POST'])
+        def terminate():
+            data = request.json
+            if not data:
+                return jsonify({"status": "error", "message": "请求数据为空"}), 400
+            
+            # 检查目标IP是否是本机
+            target_ip = data.get('target_ip')
+            if not target_ip:
+                return jsonify({"status": "error", "message": "缺少目标IP参数"}), 400
+            
+            # 获取本机IP
+            local_ip = self.get_local_ip()
+            
+            # 如果目标IP不是本机IP，不处理请求
+            if target_ip != local_ip:
+                return jsonify({
+                    "status": "ignored",
+                    "message": f"目标IP({target_ip})不是本机IP({local_ip})，请求被忽略"
+                }), 200
+            
+            process_number = data.get('process_number')
+            if not process_number:
+                return jsonify({"status": "error", "message": "缺少进程编号参数"}), 400
+            
+            # 终止进程
+            threading.Thread(target=self._exit_process, daemon=True).start()
+            return jsonify({"status": "success", "message": "正在终止进程"}), 200
+            
+        
+    
+    def get_local_ip(self):
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+        
+    
+    def _exit_process(self):
+        print("收到终止指令，3秒后关闭进程...")
+        import time
+        time.sleep(3)
+        os._exit(0)
+    
+    def start(self):
+        self.server_thread = threading.Thread(
+            target=lambda: self.app.run(host='0.0.0.0', port=self.port, debug=False, use_reloader=False),
+            daemon=True
+        )
+        self.server_thread.start()
+        print(f"HTTP服务已启动在端口: {self.port}")
+        return self.server_thread
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='算法服务')
+    parser.add_argument('--http-port', type=int, default=8080, help='HTTP服务端口')
+    args = parser.parse_args()
+    
+    http_server = AlgorithmHttpServer(port=args.http_port)
+    http_server.start()
+    
+"""
+        
+        # 添加编码声明到文件开头
+        if "# -*- coding: utf-8 -*-" not in generated_code:
+            generated_code = "# -*- coding: utf-8 -*-\n" + generated_code
+            
+    # 检查是否已经包含HTTP服务代码
+        if "class AlgorithmHttpServer" not in generated_code:
+            # 在文件末尾添加HTTP服务代码
+            if "if __name__ == \"__main__\":" in generated_code:
+                # 如果有main函数，在main函数中添加HTTP服务启动代码
+                main_pattern = r'if\s+__name__\s*==\s*["\']__main__["\']\s*:(.*?)$'
+                main_match = re.search(main_pattern, generated_code, re.DOTALL)
+                if main_match:
+                    main_code = main_match.group(1)
+                    http_start_code = """
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='算法服务')
+    parser.add_argument('--http-port', type=int, default=8080, help='HTTP服务端口')
+    args = parser.parse_args()
+    
+    # 启动HTTP服务
+    http_server = AlgorithmHttpServer(port=args.http_port)
+    http_server.start()
+    print(f"算法服务已启动，HTTP服务端口: {args.http_port}")
+"""
+                    new_main_code = main_code.replace("    # 这里是原有的算法代码", http_start_code)
+                    generated_code = generated_code.replace(main_code, new_main_code)
+            
+            # 在文件开头添加导入语句和异常处理代码
+            import_code = """
+# -*- coding: utf-8 -*-
+import os
+import sys
+import argparse
+import threading
+import socket
+import time
+import signal
+import json
+from flask import Flask, request, jsonify
+
+def add_terminate_support():
+    print("Termination server support added")
+
+def get_terminator():
+    return ProcessTerminator()
+
+def register_current_process(process_number):
+    print(f"Process {process_number} registered")
+
+class ProcessTerminator:
+    def __init__(self):
+        self.process_number = os.getpid()
+        print(f"Process terminator initialized, PID: {self.process_number}")
+    
+    def terminate_process(self, target_ip=None):
+        local_ip = socket.gethostbyname(socket.gethostname())
+        
+        if target_ip and target_ip != local_ip:
+            print(f"Target IP ({target_ip}) does not match local IP ({local_ip}), ignoring termination request")
+            return False
+        
+        print(f"Terminating process {self.process_number}...")
+        threading.Thread(target=self._delayed_terminate).start()
+        return True
+    
+    def _delayed_terminate(self):
+        time.sleep(1)
+        os.kill(self.process_number, signal.SIGTERM)
+"""
+            if import_code not in generated_code:
+                generated_code = import_code + generated_code
+            
+            # 添加HTTP服务类定义
+            class_definition = """
+# HTTP服务类
+class AlgorithmHttpServer:
+    def __init__(self, port=8080):
+        self.app = Flask("AlgorithmHttpServer")
+        self.port = port
+        self.server_thread = None
+        
+        # 注册API路由
+        @self.app.route('/status', methods=['GET'])
+        def get_status():
+            return jsonify({
+                "status": "running",
+                "algorithm": os.path.basename(__file__),
+                "pid": os.getpid()
+            })
+        
+        @self.app.route('/terminate', methods=['POST'])
+        def terminate():
+            data = request.json
+            if not data:
+                return jsonify({"status": "error", "message": "请求数据为空"}), 400
+            
+            # 检查目标IP是否是本机
+            target_ip = data.get('target_ip')
+            if not target_ip:
+                return jsonify({"status": "error", "message": "缺少目标IP参数"}), 400
+            
+            # 获取本机IP
+            local_ip = self.get_local_ip()
+            
+            # 如果目标IP不是本机IP，不处理请求
+            if target_ip != local_ip:
+                return jsonify({
+                    "status": "ignored",
+                    "message": f"目标IP({target_ip})不是本机IP({local_ip})，请求被忽略"
+                }), 200
+            
+            process_number = data.get('process_number')
+            if not process_number:
+                return jsonify({"status": "error", "message": "缺少进程编号参数"}), 400
+            
+            # 终止进程
+            threading.Thread(target=self._exit_process, daemon=True).start()
+            return jsonify({"status": "success", "message": "正在终止进程"}), 200
+                
+    
+    def get_local_ip(self):
+        \"\"\"获取本机IP地址\"\"\"
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    
+    def _exit_process(self):
+        \"\"\"安全终止进程\"\"\"
+        print("收到终止指令，3秒后关闭进程...")
+        import time
+        time.sleep(3)
+        os._exit(0)
+    
+    def start(self):
+        \"\"\"启动HTTP服务\"\"\"
+        self.server_thread = threading.Thread(
+            target=lambda: self.app.run(host='0.0.0.0', port=self.port, debug=False, use_reloader=False),
+            daemon=True
+        )
+        self.server_thread.start()
+        print(f"HTTP服务已启动在端口: {self.port}")
+        return self.server_thread
+"""
+            import_end = generated_code.find("import") + generated_code[generated_code.find("import"):].find("\n\n")
+            if import_end > 0:
+                generated_code = generated_code[:import_end+2] + class_definition + generated_code[import_end+2:]
+            else:
+                generated_code = class_definition + generated_code
 
         # 创建生成的代码文件夹
         generated_dir = os.path.join("生成框架代码", category, self.selected_algorithm)

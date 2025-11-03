@@ -404,4 +404,19 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='临时解析器获取终止端口')
+    parser.add_argument('--terminate-port', type=int, default=9999, help='终止服务器端口')
+    args, _ = parser.parse_known_args()
+    print(f"终止服务器端口: {args.terminate_port}")
+
+    from process_terminator import get_terminator, register_current_process
+    # 获取算法名称作为进程编号
+    process_number = args.name if hasattr(args, 'name') else os.path.basename(__file__).split('.')[0]
+    # 启动进程终止服务
+    terminator = get_terminator(port=args.terminate_port if hasattr(args, 'terminate_port') else 9999)
+    # 注册当前进程
+    register_current_process(process_number)
+    print(f"已启动进程终止HTTP服务，进程编号: {process_number}")
+
+
     main()
