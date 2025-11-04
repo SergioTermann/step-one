@@ -298,23 +298,30 @@ class AlgorithmIntegrationGUI:
 
         generated_code = re.sub(r'\${SPECIAL_PARAM}', str(algo_data), generated_code)
         
-        # 添加HTTP服务代码
         http_service_code = """
-# 导入HTTP服务模块
 import os
 import sys
 import argparse
 import threading
 from flask import Flask, request, jsonify
 
-# HTTP服务类
+template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'template')
+if template_dir not in sys.path:
+    sys.path.insert(0, template_dir)
+
+try:
+    from terminate_service_manager import start_terminate_service, get_terminate_service
+    _TERMINATE_SERVICE_AVAILABLE = True
+except ImportError:
+    _TERMINATE_SERVICE_AVAILABLE = False
+    print("[警告] 无法导入终止服务管理器，终止服务功能将不可用")
+
 class AlgorithmHttpServer:
     def __init__(self, port=8080):
         self.app = Flask("AlgorithmHttpServer")
         self.port = port
         self.server_thread = None
         
-        # 注册API路由
         @self.app.route('/status', methods=['GET'])
         def get_status():
             return jsonify({
@@ -329,15 +336,12 @@ class AlgorithmHttpServer:
             if not data:
                 return jsonify({"status": "error", "message": "请求数据为空"}), 400
             
-            # 检查目标IP是否是本机
             target_ip = data.get('target_ip')
             if not target_ip:
                 return jsonify({"status": "error", "message": "缺少目标IP参数"}), 400
             
-            # 获取本机IP
             local_ip = self.get_local_ip()
             
-            # 如果目标IP不是本机IP，不处理请求
             if target_ip != local_ip:
                 return jsonify({
                     "status": "ignored",
@@ -348,7 +352,6 @@ class AlgorithmHttpServer:
             if not process_number:
                 return jsonify({"status": "error", "message": "缺少进程编号参数"}), 400
             
-            # 终止进程
             threading.Thread(target=self._exit_process, daemon=True).start()
             return jsonify({"status": "success", "message": "正在终止进程"}), 200
             
@@ -381,33 +384,52 @@ class AlgorithmHttpServer:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='算法服务')
     parser.add_argument('--http-port', type=int, default=8080, help='HTTP服务端口')
+    parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务端口')
     args = parser.parse_args()
+    
+    if _TERMINATE_SERVICE_AVAILABLE:
+        print("[启动] 正在启动终止服务...")
+        if start_terminate_service(port=args.terminate_port):
+            print(f"[成功] 终止服务已启动在端口 {args.terminate_port}")
+            print(f"[提示] 可通过 POST http://localhost:{args.terminate_port}/terminate 来终止此进程")
+            print(f"[当前PID] {os.getpid()}")
+        else:
+            print("[失败] 终止服务启动失败")
+    else:
+        print("[跳过] 终止服务不可用")
     
     http_server = AlgorithmHttpServer(port=args.http_port)
     http_server.start()
+    print(f"算法服务已启动，HTTP服务端口: {args.http_port}")
     
 """
         
-        # 添加编码声明到文件开头
         if "# -*- coding: utf-8 -*-" not in generated_code:
             generated_code = "# -*- coding: utf-8 -*-\n" + generated_code
             
-    # 检查是否已经包含HTTP服务代码
         if "class AlgorithmHttpServer" not in generated_code:
-            # 在文件末尾添加HTTP服务代码
             if "if __name__ == \"__main__\":" in generated_code:
-                # 如果有main函数，在main函数中添加HTTP服务启动代码
                 main_pattern = r'if\s+__name__\s*==\s*["\']__main__["\']\s*:(.*?)$'
                 main_match = re.search(main_pattern, generated_code, re.DOTALL)
                 if main_match:
                     main_code = main_match.group(1)
                     http_start_code = """
-    # 解析命令行参数
     parser = argparse.ArgumentParser(description='算法服务')
     parser.add_argument('--http-port', type=int, default=8080, help='HTTP服务端口')
+    parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务端口')
     args = parser.parse_args()
     
-    # 启动HTTP服务
+    if _TERMINATE_SERVICE_AVAILABLE:
+        print("[启动] 正在启动终止服务...")
+        if start_terminate_service(port=args.terminate_port):
+            print(f"[成功] 终止服务已启动在端口 {args.terminate_port}")
+            print(f"[提示] 可通过 POST http://localhost:{args.terminate_port}/terminate 来终止此进程")
+            print(f"[当前PID] {os.getpid()}")
+        else:
+            print("[失败] 终止服务启动失败")
+    else:
+        print("[跳过] 终止服务不可用")
+    
     http_server = AlgorithmHttpServer(port=args.http_port)
     http_server.start()
     print(f"算法服务已启动，HTTP服务端口: {args.http_port}")
@@ -415,7 +437,6 @@ if __name__ == "__main__":
                     new_main_code = main_code.replace("    # 这里是原有的算法代码", http_start_code)
                     generated_code = generated_code.replace(main_code, new_main_code)
             
-            # 在文件开头添加导入语句和异常处理代码
             import_code = """
 # -*- coding: utf-8 -*-
 import os
@@ -427,6 +448,17 @@ import time
 import signal
 import json
 from flask import Flask, request, jsonify
+
+template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'template')
+if template_dir not in sys.path:
+    sys.path.insert(0, template_dir)
+
+try:
+    from terminate_service_manager import start_terminate_service, get_terminate_service
+    _TERMINATE_SERVICE_AVAILABLE = True
+except ImportError:
+    _TERMINATE_SERVICE_AVAILABLE = False
+    print("[警告] 无法导入终止服务管理器，终止服务功能将不可用")
 
 def add_terminate_support():
     print("Termination server support added")
@@ -460,16 +492,13 @@ class ProcessTerminator:
             if import_code not in generated_code:
                 generated_code = import_code + generated_code
             
-            # 添加HTTP服务类定义
             class_definition = """
-# HTTP服务类
 class AlgorithmHttpServer:
     def __init__(self, port=8080):
         self.app = Flask("AlgorithmHttpServer")
         self.port = port
         self.server_thread = None
         
-        # 注册API路由
         @self.app.route('/status', methods=['GET'])
         def get_status():
             return jsonify({
@@ -484,15 +513,12 @@ class AlgorithmHttpServer:
             if not data:
                 return jsonify({"status": "error", "message": "请求数据为空"}), 400
             
-            # 检查目标IP是否是本机
             target_ip = data.get('target_ip')
             if not target_ip:
                 return jsonify({"status": "error", "message": "缺少目标IP参数"}), 400
             
-            # 获取本机IP
             local_ip = self.get_local_ip()
             
-            # 如果目标IP不是本机IP，不处理请求
             if target_ip != local_ip:
                 return jsonify({
                     "status": "ignored",
@@ -503,13 +529,11 @@ class AlgorithmHttpServer:
             if not process_number:
                 return jsonify({"status": "error", "message": "缺少进程编号参数"}), 400
             
-            # 终止进程
             threading.Thread(target=self._exit_process, daemon=True).start()
             return jsonify({"status": "success", "message": "正在终止进程"}), 200
                 
     
     def get_local_ip(self):
-        \"\"\"获取本机IP地址\"\"\"
         import socket
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -518,14 +542,12 @@ class AlgorithmHttpServer:
         return ip
     
     def _exit_process(self):
-        \"\"\"安全终止进程\"\"\"
         print("收到终止指令，3秒后关闭进程...")
         import time
         time.sleep(3)
         os._exit(0)
     
     def start(self):
-        \"\"\"启动HTTP服务\"\"\"
         self.server_thread = threading.Thread(
             target=lambda: self.app.run(host='0.0.0.0', port=self.port, debug=False, use_reloader=False),
             daemon=True

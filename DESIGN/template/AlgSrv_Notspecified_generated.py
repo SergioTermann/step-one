@@ -1,3 +1,117 @@
+
+# -*- coding: utf-8 -*-
+import os
+import sys
+import argparse
+import threading
+import socket
+import time
+import signal
+import json
+from flask import Flask, request, jsonify
+
+
+class AlgorithmHttpServer:
+    def __init__(self, port=8081):
+        self.app = Flask("AlgorithmHttpServer")
+        self.port = port
+        self.server_thread = None
+        
+        @self.app.route('/status', methods=['GET'])
+        def get_status():
+            return jsonify({
+                "status": "running",
+                "algorithm": os.path.basename(__file__),
+                "pid": os.getpid()
+            })
+        
+        @self.app.route('/terminate', methods=['POST'])
+        def terminate():
+            data = request.json
+            if not data:
+                return jsonify({"status": "error", "message": "请求数据为空"}), 400
+            
+            target_ip = data.get('target_ip')
+            if not target_ip:
+                return jsonify({"status": "error", "message": "缺少目标IP参数"}), 400
+            
+            local_ip = self.get_local_ip()
+            
+            if target_ip != local_ip:
+                return jsonify({
+                    "status": "ignored",
+                    "message": f"目标IP({target_ip})不是本机IP({local_ip})，请求被忽略"
+                }), 200
+            
+            process_number = data.get('process_number')
+            if not process_number:
+                return jsonify({"status": "error", "message": "缺少进程编号参数"}), 400
+            
+            threading.Thread(target=self._exit_process, daemon=True).start()
+            return jsonify({"status": "success", "message": "正在终止进程"}), 200
+                
+    
+    def get_local_ip(self):
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    
+    def _exit_process(self):
+        print("收到终止指令，3秒后关闭进程...")
+        import time
+        time.sleep(3)
+        os._exit(0)
+    
+    def start(self):
+        self.server_thread = threading.Thread(
+            target=lambda: self.app.run(host='0.0.0.0', port=self.port, debug=False, use_reloader=False),
+            daemon=True
+        )
+        self.server_thread.start()
+        print(f"HTTP服务已启动在端口: {self.port}")
+        return self.server_thread
+template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'template')
+if template_dir not in sys.path:
+    sys.path.insert(0, template_dir)
+
+try:
+    from terminate_service_manager import start_terminate_service, get_terminate_service
+    _TERMINATE_SERVICE_AVAILABLE = True
+except ImportError:
+    _TERMINATE_SERVICE_AVAILABLE = False
+    print("[警告] 无法导入终止服务管理器，终止服务功能将不可用")
+
+def add_terminate_support():
+    print("Termination server support added")
+
+def get_terminator():
+    return ProcessTerminator()
+
+def register_current_process(process_number):
+    print(f"Process {process_number} registered")
+
+class ProcessTerminator:
+    def __init__(self):
+        self.process_number = os.getpid()
+        print(f"Process terminator initialized, PID: {self.process_number}")
+    
+    def terminate_process(self, target_ip=None):
+        local_ip = socket.gethostbyname(socket.gethostname())
+        
+        if target_ip and target_ip != local_ip:
+            print(f"Target IP ({target_ip}) does not match local IP ({local_ip}), ignoring termination request")
+            return False
+        
+        print(f"Terminating process {self.process_number}...")
+        threading.Thread(target=self._delayed_terminate).start()
+        return True
+    
+    def _delayed_terminate(self):
+        time.sleep(1)
+        os.kill(self.process_number, signal.SIGTERM)
 # -*- coding: utf-8 -*-
 import socket
 import json
@@ -84,7 +198,7 @@ class HTTPStatusReporter:
             "version": algorithm_info.get("version", "1.0"),
             "description": algorithm_info.get("description", "K-means聚类算法，用于数据聚类分析"),
             "ip": get_local_ip(),
-            "port": algorithm_info.get("network_info", {}).get("port", 8080),
+            "port": algorithm_info.get("network_info", {}).get("port", 8081),
             "creator": algorithm_info.get("creator", "system"),
             "network_info": {
                 "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
@@ -235,7 +349,7 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
 
     return algorithm_info
 
-class TemplateClass:
+class AlgSrv_Notspecified:
     def __init__(self, initial_state=None, initial_covariance=None, process_noise=None, measurement_noise=None):
         if initial_state is None:
             initial_state = np.array([0.0, 0.0])
@@ -324,7 +438,7 @@ def main():
     parser.add_argument('--file', default='algorithms.json', help='存储算法信息的JSON文件路径')
     parser.add_argument('--name', default='K_means算法', help='要加载的算法名称')
     parser.add_argument('--algo-ip', default='192.168.43.3', help='算法服务IP地址')
-    parser.add_argument('--algo-port', type=int, default=8080, help='算法服务端口')
+    parser.add_argument('--algo-port', type=int, default=8081, help='算法服务端口')
     parser.add_argument('--interval', type=float, default=2.0, help='发送间隔(秒)')
     parser.add_argument('--count', type=int, default=0, help='发送次数(0表示无限发送)')
     parser.add_argument('--status', default='running', help='算法状态')
@@ -355,7 +469,7 @@ def main():
         print("\n[跳过] 终止服务不可用，请检查 terminate_service_manager.py 是否存在")
     
     print("="*60 + "\n")
-    config_param = "${SPECIAL_PARAM}"
+    config_param = "{'category': '内置服务', 'class': '认知识别类', 'subcategory': '聚类分析类', 'version': '1.3', 'creator': '陈五', 'create_time': '2025/1/10 09:15', 'maintainer': '陈五', 'update_time': '2025-04-07 10:13:36', 'description': 'K-means算法是一种常用的聚类分析算法，旨在将数据点分为K个簇，使得每个点都属于距离最近的簇。', 'inputs': [{'name': '惯性数据', 'symbol': 'IMU', 'type': 'double', 'dimension': '1', 'description': 'mxn'}, {'name': 'GPS数据', 'symbol': 'GPS', 'type': 'double', 'dimension': '1', 'description': 'GPS位置数据'}, {'name': '图像地址', 'symbol': 'img_path', 'type': 'int8', 'dimension': '1', 'description': '图像文件路径'}, {'name': '时间戳', 'symbol': 't', 'type': 'vector', 'dimension': '秒', 'description': '数据采集时间戳'}, {'name': '簇数量', 'symbol': 'K', 'type': 'std::vector<int>', 'dimension': '1', 'description': '期望的聚类数量'}], 'outputs': [{'name': '物体类别标签', 'symbol': 'labels', 'type': 'vector', 'dimension': '1', 'description': '识别的物体类别标签'}, {'name': '物体绝对位置', 'symbol': 'positions', 'type': 'double', 'dimension': '位置', 'description': '各物体的绝对位置坐标'}, {'name': '物体加速度', 'symbol': 'accel', 'type': 'double', 'dimension': '米每平方秒', 'description': '各物体的加速度'}, {'name': '置信度', 'symbol': 'confidence', 'type': 'vector', 'dimension': '1', 'description': '各物体识别的置信度'}], 'network_info': {'ip': '127.0.0.1', 'status': '空闲', 'is_remote': False}}"
 
     try:
         config_param = ast.literal_eval(config_param)
@@ -392,7 +506,7 @@ def main():
     updated_info = update_algorithm_info(config_param, ip=args.algo_ip, port=args.algo_port, status="空闲")
     client.send_algorithm_info(updated_info)
 
-    algorithm = TemplateClass()
+    algorithm = AlgSrv_Notspecified()
 
     def signal_handler_with_http(sig, frame):
         global program_running

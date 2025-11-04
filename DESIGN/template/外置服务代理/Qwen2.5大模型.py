@@ -14,9 +14,18 @@ import threading
 import requests
 from datetime import datetime
 
+template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)))
+if template_dir not in sys.path:
+    sys.path.insert(0, template_dir)
+
+try:
+    from terminate_service_manager import start_terminate_service, get_terminate_service
+    _TERMINATE_SERVICE_AVAILABLE = True
+except ImportError:
+    _TERMINATE_SERVICE_AVAILABLE = False
+    print("[警告] 无法导入终止服务管理器，终止服务功能将不可用")
 
 def get_local_ip():
-    """获取本地IP地址"""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -26,9 +35,7 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
-
 class HTTPStatusReporter:
-    """HTTP状态上报器"""
 
     def __init__(self, server_ip='180.1.80.3', server_port=8192):
         self.session = requests.Session()
@@ -144,16 +151,13 @@ class HTTPStatusReporter:
                 self.report_thread.join(timeout=2)
             self.log_with_timestamp("已停止状态上报")
 
-
 def get_memory_usage():
     process = psutil.Process(os.getpid())
     return round(process.memory_percent(), 2)
 
-
 def get_cpu_usage():
     process = psutil.Process(os.getpid())
     return round(process.cpu_percent(interval=1), 2)
-
 
 def get_gpu_usage():
     try:
@@ -163,7 +167,6 @@ def get_gpu_usage():
         return round(utilization.gpu, 2)
     except Exception:
         return 0.0
-
 
 class AlgorithmStatusClient:
     def __init__(self, server_ip='127.0.0.1', server_port=12345):
@@ -183,7 +186,6 @@ class AlgorithmStatusClient:
 
     def close(self):
         self.socket.close()
-
 
 def load_algorithm_from_file(file_path, algorithm_name):
     try:
@@ -206,7 +208,6 @@ def load_algorithm_from_file(file_path, algorithm_name):
         print(f"加载算法信息时出错: {e}")
         return None
 
-
 def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="空闲", is_remote=True):
     if not algorithm_info:
         return None
@@ -224,7 +225,6 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
     }
 
     return algorithm_info
-
 
 class TemplateClass:
     def __init__(self, initial_state=None, initial_covariance=None, process_noise=None, measurement_noise=None):
@@ -261,11 +261,9 @@ class TemplateClass:
     def run(self):
         time.sleep(0.5)
 
-
 program_running = True
 client = None
 status_thread = None
-
 
 def send_offline_status(client, algorithm_info, algo_ip, algo_port, is_remote):
     if client and algorithm_info:
@@ -279,12 +277,10 @@ def send_offline_status(client, algorithm_info, algo_ip, algo_port, is_remote):
         client.send_algorithm_info(offline_info)
         print("已发送离线状态")
 
-
 def signal_handler(sig, frame):
     global program_running
     program_running = False
     print("正在关闭程序...")
-
 
 def status_monitoring_thread(client, config_param, algorithm, args):
     global program_running
@@ -301,7 +297,6 @@ def status_monitoring_thread(client, config_param, algorithm, args):
             client.send_algorithm_info(updated_info)
         time.sleep(args.interval)
     send_offline_status(client, config_param, args.algo_ip, args.algo_port, args.remote)
-
 
 def main():
     global client, program_running, status_thread
@@ -320,8 +315,29 @@ def main():
     parser.add_argument('--http-server', default='180.1.80.3', help='HTTP状态上报服务器IP地址')
     parser.add_argument('--http-port', type=int, default=8192, help='HTTP状态上报服务器端口')
     parser.add_argument('--report-interval', type=int, default=30, help='HTTP状态上报间隔(秒)')
+    parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务端口')
 
     args = parser.parse_args()
+    
+    print("="*60)
+    print(f"启动算法: {args.name}")
+    print("="*60)
+    
+    if _TERMINATE_SERVICE_AVAILABLE:
+        print(f"\n[启动] 正在启动终止服务在端口 {args.terminate_port}...")
+        if start_terminate_service(port=args.terminate_port):
+            print(f"[成功] 终止服务已启动在端口 {args.terminate_port}")
+            print(f"[提示] 可通过以下方式终止此进程:")
+            print(f"        POST http://localhost:{args.terminate_port}/terminate")
+            print(f"        请求体: {{'port': '{os.getpid()}'}}")
+            print(f"[当前PID] {os.getpid()}")
+            print(f"[监听地址] 0.0.0.0:{args.terminate_port}")
+        else:
+            print(f"[失败] 终止服务启动失败")
+    else:
+        print("\n[跳过] 终止服务不可用，请检查 terminate_service_manager.py 是否存在")
+    
+    print("="*60 + "\n")
     config_param = "${SPECIAL_PARAM}"
 
     try:
@@ -400,23 +416,16 @@ def main():
             status_thread.join(timeout=2.0)
         if client:
             client.close()
-        print("程序已正常退出")
-
+        
+        if _TERMINATE_SERVICE_AVAILABLE:
+            print("\n[终止服务] 显示请求日志:")
+            service = get_terminate_service()
+            if service and service.request_log:
+                service.print_logs()
+            else:
+                print("  没有收到终止请求")
+        
+        print("\n程序已正常退出")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='临时解析器获取终止端口')
-    parser.add_argument('--terminate-port', type=int, default=9999, help='终止服务器端口')
-    args, _ = parser.parse_known_args()
-    print(f"终止服务器端口: {args.terminate_port}")
-
-    from process_terminator import get_terminator, register_current_process
-    # 获取算法名称作为进程编号
-    process_number = args.name if hasattr(args, 'name') else os.path.basename(__file__).split('.')[0]
-    # 启动进程终止服务
-    terminator = get_terminator(port=args.terminate_port if hasattr(args, 'terminate_port') else 9999)
-    # 注册当前进程
-    register_current_process(process_number)
-    print(f"已启动进程终止HTTP服务，进程编号: {process_number}")
-
-
     main()
