@@ -87,7 +87,7 @@ class HTTPStatusReporter:
             "version": algorithm_info.get("version", "1.0"),
             "description": algorithm_info.get("description", "基于狼群智能的协同打击算法，用于多智能体协同打击任务"),
             "ip": get_local_ip(),
-            "port": algorithm_info.get("network_info", {}).get("port", 8080),
+            "port": algorithm_info.get("network_info", {}).get("port", 8081),
             "creator": algorithm_info.get("creator", "system"),
             "network_info": {
                 "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
