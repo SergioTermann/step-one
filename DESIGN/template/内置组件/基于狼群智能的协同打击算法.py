@@ -3,13 +3,8 @@ import json
 import os
 from datetime import datetime
 import sys
-import requests
-import psutil
-import pynvml
-import threading
 import argparse
 import signal
-import time
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..'))
 from http_connect import HTTPStatusReporter

@@ -83,7 +83,7 @@ class HTTPStatusReporter:
             "version": algorithm_info.get("version", "1.0"),
             "description": algorithm_info.get("description", "扩展卡尔曼滤波算法，用于非线性系统状态估计"),
             "ip": get_local_ip(),
-            "port": algorithm_info.get("network_info", {}).get("port", 8080),
+            "port": algorithm_info.get("network_info", {}).get("port", 8081),
             "creator": algorithm_info.get("creator", "system"),
             "network_info": {
                 "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
@@ -311,8 +311,8 @@ def main():
     parser.add_argument('--algo-file', default='algorithm.json', help='算法文件路径')
     parser.add_argument('--name', default='扩展卡尔曼滤波算法', help='算法名称')
     parser.add_argument('--algo-ip', default='192.168.43.3', help='算法IP地址')
-    parser.add_argument('--algo-port', type=int, default=8080, help='算法服务端口')
-    parser.add_argument('--interval', type=float, default=2.0, help='发送间隔(秒)')
+    parser.add_argument('--algo-port', type=int, default=8081, help='算法服务端口')
+    parser.add_argument('--interval', type=float, default=2, help='发送间隔(秒)')
     parser.add_argument('--count', type=int, default=0, help='发送次数(0表示无限发送)')
     parser.add_argument('--status', default='running', help='算法状态')
     parser.add_argument('--remote', action='store_true', default=True, help='是否为远程算法')

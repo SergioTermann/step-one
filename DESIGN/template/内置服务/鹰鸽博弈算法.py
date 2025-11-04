@@ -7,12 +7,8 @@ import os
 import pynvml
 import psutil
 import numpy as np
-import ast
 import signal
 import sys
-import threading
-import requests
-from requests.adapters import HTTPAdapter
 
 template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)))
 if template_dir not in sys.path:
@@ -204,8 +200,8 @@ def main():
     parser = argparse.ArgumentParser(description='鹰鸽博弈算法 - HTTP状态上报版本')
     parser.add_argument('--algorithm', default='鹰鸽博弈算法', help='算法名称')
     parser.add_argument('--algo_ip', default=None, help='算法IP地址')
-    parser.add_argument('--algo_port', type=int, default=8080, help='算法端口')
-    parser.add_argument('--interval', type=int, default=30, help='状态上报间隔（秒）')
+    parser.add_argument('--algo_port', type=int, default=8081, help='算法端口')
+    parser.add_argument('--interval', type=int, default=2, help='状态上报间隔（秒）')
     parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务端口')
 
     args = parser.parse_args()

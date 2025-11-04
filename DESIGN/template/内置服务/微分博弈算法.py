@@ -35,6 +35,16 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
+def get_gpu_usage():
+    try:
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        gpu_percent = utilization.gpu
+        return round(gpu_percent, 2)
+    except:
+        return 0
+
 class HTTPStatusReporter:
     
     def __init__(self, server_ip='180.1.80.3', server_port=8192):
@@ -88,7 +98,7 @@ class HTTPStatusReporter:
                 "version": algorithm_info.get("version", "1.0"),
                 "description": algorithm_info.get("description", "微分博弈算法，用于多智能体决策分析"),
                 "ip": get_local_ip(),
-                "port": algorithm_info.get("network_info", {}).get("port", 8080),
+                "port": algorithm_info.get("network_info", {}).get("port", 8081),
                 "creator": algorithm_info.get("creator", "system"),
                 "network_info": {
                     "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
@@ -208,6 +218,11 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
 
     algorithm_info["update_time"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
+    try:
+        gpu_usage = get_gpu_usage()
+    except:
+        gpu_usage = 0
+
     algorithm_info["network_info"] = {
         "ip": ip,
         "port": port,
@@ -215,7 +230,7 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
 
         "memory_usage": round(psutil.Process(os.getpid()).memory_percent(), 2),
         "cpu_usage": round(psutil.Process(os.getpid()).cpu_percent(interval=1), 2),
-        "gpu_usage": round(pynvml.nvmlDeviceGetUtilizationRates(pynvml.nvmlDeviceGetHandleByIndex(0)).gpu, 2),
+        "gpu_usage": gpu_usage,
         "is_remote": is_remote
     }
 
@@ -302,14 +317,16 @@ def status_monitoring_thread(client, config_param, algorithm, args):
     send_offline_status(client, config_param, args.algo_ip, args.algo_port, args.remote)
 
 def main():
+    global client, program_running, status_thread
+    
     parser = argparse.ArgumentParser(description='算法状态发送器')
     parser.add_argument('--server', default='127.0.0.1', help='服务器IP地址')
     parser.add_argument('--port', type=int, default=12345, help='服务器端口')
     parser.add_argument('--algo-file', default='algorithm.json', help='算法文件路径')
     parser.add_argument('--name', default='微分博弈算法', help='算法名称')
     parser.add_argument('--algo-ip', default='192.168.43.3', help='算法IP地址')
-    parser.add_argument('--algo-port', type=int, default=8080, help='算法服务端口')
-    parser.add_argument('--interval', type=float, default=2.0, help='发送间隔(秒)')
+    parser.add_argument('--algo-port', type=int, default=8081, help='算法服务端口')
+    parser.add_argument('--interval', type=float, default=2, help='发送间隔(秒)')
     parser.add_argument('--count', type=int, default=0, help='发送次数(0表示无限发送)')
     parser.add_argument('--status', default='running', help='算法状态')
     parser.add_argument('--remote', action='store_true', default=True, help='是否为远程算法')
@@ -351,6 +368,7 @@ def main():
         return
 
     args.ip = get_local_ip()
+    client = AlgorithmStatusClient(args.server, args.port)
     
     http_reporter = HTTPStatusReporter(args.http_server, args.http_port)
     
@@ -370,6 +388,11 @@ def main():
             "status": "运行中"
         }
     }
+    
+    http_reporter.start_periodic_reporting(args.name, algorithm_info, args.interval)
+    
+    updated_info = update_algorithm_info(config_param, ip=args.algo_ip, port=args.algo_port, status="空闲")
+    client.send_algorithm_info(updated_info)
 
     algorithm = TemplateClass()
 
@@ -389,7 +412,8 @@ def main():
     signal.signal(signal.SIGINT, signal_handler_with_http)
     signal.signal(signal.SIGTERM, signal_handler_with_http)
 
-    http_reporter.start_periodic_reporting(args.name, algorithm_info, args.interval)
+    status_thread = threading.Thread(target=status_monitoring_thread, args=(client, config_param, algorithm, args), daemon=True)
+    status_thread.start()
 
     try:
         count = 0
@@ -416,6 +440,12 @@ def main():
         http_reporter.send_status_message(args.name, offline_info)
         
         http_reporter.stop_reporting()
+        
+        if status_thread:
+            status_thread.join(timeout=2.0)
+        
+        if client:
+            client.close()
         
         if _TERMINATE_SERVICE_AVAILABLE:
             print("\n[终止服务] 显示请求日志:")

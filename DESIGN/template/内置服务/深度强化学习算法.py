@@ -63,7 +63,7 @@ class HTTPStatusReporter:
                 "version": algorithm_info.get("version", "1.0"),
                 "description": algorithm_info.get("description", "深度强化学习算法"),
                 "ip": get_local_ip(),
-                "port": algorithm_info.get("network_info", {}).get("port", 8080),
+                "port": algorithm_info.get("network_info", {}).get("port", 8081),
                 "creator": algorithm_info.get("creator", "system"),
                 "network_info": {
                     "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
@@ -312,8 +312,8 @@ def main():
     parser.add_argument('--file', default='algorithms.json', help='存储算法信息的JSON文件路径')
     parser.add_argument('--algorithm', default='深度强化学习算法', help='算法名称')
     parser.add_argument('--algo_ip', default=None, help='算法IP地址')
-    parser.add_argument('--algo_port', type=int, default=8080, help='算法端口')
-    parser.add_argument('--interval', type=int, default=30, help='状态上报间隔（秒）')
+    parser.add_argument('--algo_port', type=int, default=8081, help='算法端口')
+    parser.add_argument('--interval', type=int, default=2, help='状态上报间隔（秒）')
     parser.add_argument('--remote', type=ast.literal_eval, default=False, help='是否为远程算法')
     parser.add_argument('--remote_ip', default='180.1.80.3', help='远程HTTP服务器IP')
     parser.add_argument('--remote_port', type=int, default=8192, help='远程HTTP服务器端口')

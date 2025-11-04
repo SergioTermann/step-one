@@ -1,3 +1,106 @@
+
+# -*- coding: utf-8 -*-
+import os
+import sys
+import argparse
+import threading
+import socket
+import time
+import signal
+import json
+from flask import Flask, request, jsonify
+
+
+class AlgorithmHttpServer:
+    def __init__(self, port=8080):
+        self.app = Flask("AlgorithmHttpServer")
+        self.port = port
+        self.server_thread = None
+        
+        @self.app.route('/status', methods=['GET'])
+        def get_status():
+            return jsonify({
+                "status": "running",
+                "algorithm": os.path.basename(__file__),
+                "pid": os.getpid()
+            })
+        
+        @self.app.route('/terminate', methods=['POST'])
+        def terminate():
+            data = request.json
+            if not data:
+                return jsonify({"status": "error", "message": "请求数据为空"}), 400
+            
+            target_ip = data.get('target_ip')
+            if not target_ip:
+                return jsonify({"status": "error", "message": "缺少目标IP参数"}), 400
+            
+            local_ip = self.get_local_ip()
+            
+            if target_ip != local_ip:
+                return jsonify({
+                    "status": "ignored",
+                    "message": f"目标IP({target_ip})不是本机IP({local_ip})，请求被忽略"
+                }), 200
+            
+            process_number = data.get('process_number')
+            if not process_number:
+                return jsonify({"status": "error", "message": "缺少进程编号参数"}), 400
+            
+            threading.Thread(target=self._exit_process, daemon=True).start()
+            return jsonify({"status": "success", "message": "正在终止进程"}), 200
+                
+    
+    def get_local_ip(self):
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    
+    def _exit_process(self):
+        print("收到终止指令，3秒后关闭进程...")
+        import time
+        time.sleep(3)
+        os._exit(0)
+    
+    def start(self):
+        self.server_thread = threading.Thread(
+            target=lambda: self.app.run(host='0.0.0.0', port=self.port, debug=False, use_reloader=False),
+            daemon=True
+        )
+        self.server_thread.start()
+        print(f"HTTP服务已启动在端口: {self.port}")
+        return self.server_thread
+template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'template')
+if template_dir not in sys.path:
+    sys.path.insert(0, template_dir)
+
+
+def get_terminator():
+    return ProcessTerminator()
+
+
+class ProcessTerminator:
+    def __init__(self):
+        self.process_number = os.getpid()
+        print(f"Process terminator initialized, PID: {self.process_number}")
+    
+    def terminate_process(self, target_ip=None):
+        local_ip = socket.gethostbyname(socket.gethostname())
+        
+        if target_ip and target_ip != local_ip:
+            print(f"Target IP ({target_ip}) does not match local IP ({local_ip}), ignoring termination request")
+            return False
+        
+        print(f"Terminating process {self.process_number}...")
+        threading.Thread(target=self._delayed_terminate).start()
+        return True
+    
+    def _delayed_terminate(self):
+        time.sleep(1)
+        os.kill(self.process_number, signal.SIGTERM)
 # -*- coding: utf-8 -*-
 import socket
 import json
@@ -35,12 +138,27 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
+def get_gpu_usage():
+    try:
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        gpu_percent = utilization.gpu
+        return round(gpu_percent, 2)
+    except:
+        return 0
+
 class HTTPStatusReporter:
     
     def __init__(self, server_ip='180.1.80.3', server_port=8192):
         self.session = requests.Session()
         self.session.trust_env = False
         self.session.headers.update({'Connection': 'close'})
+        self.session.mount('http://', requests.adapters.HTTPAdapter(
+            max_retries=3,
+            pool_connections=1,
+            pool_maxsize=1
+        ))
         self.server_ip = server_ip
         self.server_port = server_port
         self.base_url = f"http://{server_ip}:{server_port}/resource/webSocketOnMessage"
@@ -64,62 +182,55 @@ class HTTPStatusReporter:
             pynvml.nvmlInit()
             handle = pynvml.nvmlDeviceGetHandleByIndex(0)
             utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-            return round(utilization.gpu, 2)
-        except Exception:
-            return 0.0
+            gpu_percent = utilization.gpu
+            return round(gpu_percent, 2)
+        except:
+            return 0
     
     def build_status_message(self, algorithm_name, algorithm_info):
-        memory_usage = self.get_memory_usage()
-        cpu_usage = self.get_cpu_usage()
-        gpu_usage = self.get_gpu_usage()
-
-        status_data = [{
-            "name": algorithm_name,
-            "category": algorithm_info.get("category", "外置服务代理"),
-            "className": algorithm_info.get("class", "人工智能类"),
-            "subcategory": algorithm_info.get("subcategory", "大语言模型类"),
-            "version": algorithm_info.get("version", "1.0"),
-            "description": algorithm_info.get("description", "大模型算法，用于自然语言处理和生成"),
-            "ip": get_local_ip(),
-            "port": algorithm_info.get("network_info", {}).get("port", 8081),
-            "creator": algorithm_info.get("creator", "system"),
-            "network_info": {
-                "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
-                "is_remote": algorithm_info.get("network_info", {}).get("is_remote", True),
-                "cpu_usage": cpu_usage,
-                "gpu_usage": [{'usage': gpu_usage, "index": gpu_usage, "name": gpu_usage, "memory_used_mb": 10, "memory_total_mb": 100}],
-                "memory_usage": memory_usage,
-                "last_update_timestamp": datetime.now().isoformat(),
-                "gpu_new": "",
-            },
-        }]
-
-        return status_data
+        try:
+            memory_usage = self.get_memory_usage()
+            cpu_usage = self.get_cpu_usage()
+            gpu_usage = self.get_gpu_usage()
+            
+            status_data = [{
+                "name": algorithm_name,
+                "category": algorithm_info.get("category", "内置服务"),
+                "className": algorithm_info.get("class", "博弈论类"),
+                "subcategory": algorithm_info.get("subcategory", "微分博弈类"),
+                "version": algorithm_info.get("version", "1.0"),
+                "description": algorithm_info.get("description", "微分博弈算法，用于多智能体决策分析"),
+                "ip": get_local_ip(),
+                "port": algorithm_info.get("network_info", {}).get("port", 8081),
+                "creator": algorithm_info.get("creator", "system"),
+                "network_info": {
+                    "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
+                    "is_remote": algorithm_info.get("network_info", {}).get("is_remote", True),
+                    "cpu_usage": cpu_usage,
+                    "gpu_usage": [{'usage': gpu_usage, "index": 0, "name": "GPU-0", "memory_used_mb": 10, "memory_total_mb": 100}],
+                    "memory_usage": memory_usage,
+                    "last_update_timestamp": datetime.now().isoformat(),
+                    "gpu_new": "",
+                },
+            }]
+            
+            return status_data
+            
+        except Exception as e:
+            self.log_with_timestamp(f"构建状态消息时出错: {e}")
+            return None
     
     def send_status_message(self, algorithm_name, algorithm_info):
         try:
             status_data = self.build_status_message(algorithm_name, algorithm_info)
-            if status_data:
-                response = self.session.post(
-                    self.base_url,
-                    json=status_data,
-                    headers={'Content-Type': 'application/json', 'Connection': 'close'},
-                    timeout=5
-                )
+            if not status_data:
+                return False
                 
-                if response.status_code == 200:
-                    self.log_with_timestamp(f"状态上报成功: {algorithm_name}")
-                else:
-                    self.log_with_timestamp(f"状态上报失败: HTTP {response.status_code}")
-                    
-        except Exception as e:
-            self.log_with_timestamp(f"状态上报时出错: {e}")
-                
-            response = requests.post(
+            response = self.session.post(
                 self.base_url,
                 json=status_data,
-                headers={'Content-Type': 'application/json'},
-                timeout=10
+                headers={'Content-Type': 'application/json', 'Connection': 'close'},
+                timeout=(15, 30)
             )
             
             if response.status_code == 200:
@@ -141,7 +252,7 @@ class HTTPStatusReporter:
             self.send_status_message(algorithm_name, algorithm_info)
             time.sleep(interval)
     
-    def start_periodic_reporting(self, algorithm_name, algorithm_info, interval=2):
+    def start_periodic_reporting(self, algorithm_name, algorithm_info, interval=30):
         if self.reporting:
             self.log_with_timestamp("状态上报已在运行中")
             return None
@@ -162,31 +273,6 @@ class HTTPStatusReporter:
             if self.report_thread:
                 self.report_thread.join(timeout=2)
             self.log_with_timestamp("已停止状态上报")
-
-def get_local_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        return "127.0.0.1"
-
-def get_memory_usage():
-    process = psutil.Process(os.getpid())
-    return round(process.memory_percent(), 2)
-
-def get_cpu_usage():
-    process = psutil.Process(os.getpid())
-    return round(process.cpu_percent(interval=1), 2)
-
-def get_gpu_usage():
-    pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-    utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-    gpu_percent = utilization.gpu
-    return round(gpu_percent, 2)
 
 class AlgorithmStatusClient:
     def __init__(self, server_ip='127.0.0.1', server_port=12345):
@@ -235,20 +321,25 @@ def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="
 
     algorithm_info["update_time"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
+    try:
+        gpu_usage = get_gpu_usage()
+    except:
+        gpu_usage = 0
+
     algorithm_info["network_info"] = {
         "ip": ip,
         "port": port,
         "status": status,
 
-        "memory_usage": get_memory_usage(),
-        "cpu_usage": get_cpu_usage(),
-        "gpu_usage": get_gpu_usage(),
+        "memory_usage": round(psutil.Process(os.getpid()).memory_percent(), 2),
+        "cpu_usage": round(psutil.Process(os.getpid()).cpu_percent(interval=1), 2),
+        "gpu_usage": gpu_usage,
         "is_remote": is_remote
     }
 
     return algorithm_info
 
-class TemplateClass:
+class AlgSrv_Notspecified:
     def __init__(self, initial_state=None, initial_covariance=None, process_noise=None, measurement_noise=None):
         if initial_state is None:
             initial_state = np.array([0.0, 0.0])
@@ -330,21 +421,20 @@ def status_monitoring_thread(client, config_param, algorithm, args):
 
 def main():
     global client, program_running, status_thread
-
-    parser = argparse.ArgumentParser(description='算法状态发送客户端')
+    
+    parser = argparse.ArgumentParser(description='算法状态发送器')
     parser.add_argument('--server', default='127.0.0.1', help='服务器IP地址')
     parser.add_argument('--port', type=int, default=12345, help='服务器端口')
-    parser.add_argument('--file', default='algorithms.json', help='存储算法信息的JSON文件路径')
-    parser.add_argument('--name', default='大模型算法', help='要加载的算法名称')
-    parser.add_argument('--algo-ip', default='192.168.43.3', help='算法服务IP地址')
+    parser.add_argument('--algo-file', default='algorithm.json', help='算法文件路径')
+    parser.add_argument('--name', default='微分博弈算法', help='算法名称')
+    parser.add_argument('--algo-ip', default='192.168.43.3', help='算法IP地址')
     parser.add_argument('--algo-port', type=int, default=8081, help='算法服务端口')
     parser.add_argument('--interval', type=float, default=2, help='发送间隔(秒)')
     parser.add_argument('--count', type=int, default=0, help='发送次数(0表示无限发送)')
     parser.add_argument('--status', default='running', help='算法状态')
     parser.add_argument('--remote', action='store_true', default=True, help='是否为远程算法')
-    parser.add_argument('--http-server', default='180.1.80.3', help='HTTP状态上报服务器IP地址')
-    parser.add_argument('--http-port', type=int, default=8192, help='HTTP状态上报服务器端口')
-    parser.add_argument('--report-interval', type=int, default=2, help='HTTP状态上报间隔(秒)')
+    parser.add_argument('--http-server', default='180.1.80.3', help='远程HTTP服务器IP地址')
+    parser.add_argument('--http-port', type=int, default=8192, help='远程HTTP服务器端口')
     parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务端口')
 
     args = parser.parse_args()
@@ -368,7 +458,7 @@ def main():
         print("\n[跳过] 终止服务不可用，请检查 terminate_service_manager.py 是否存在")
     
     print("="*60 + "\n")
-    config_param = "${SPECIAL_PARAM}"
+    config_param = "{'category': '内置服务', 'class': '自主决策类', 'subcategory': '对抗决策类', 'version': '1.5', 'creator': '刘华', 'create_time': '2025/1/25 16:40', 'maintainer': '张伟', 'update_time': '2025/2/18 11:20', 'description': '微分博弈算法用于求解动态对抗环境下的最优决策，通过求解微分方程组获得纳什均衡解。', 'inputs': [{'name': '无人机初始位置', 'symbol': 'P_0', 'type': '向量', 'dimension': '位置', 'description': '无人机的初始位置坐标'}, {'name': '目标初始位置', 'symbol': 'T_0', 'type': '向量', 'dimension': '位置', 'description': '目标的初始位置坐标'}, {'name': '初始速度', 'symbol': 'V_0', 'type': '向量', 'dimension': '米每秒', 'description': '无人机的初始速度'}, {'name': '策略参数', 'symbol': 'alpha', 'type': '标量', 'dimension': '1', 'description': '博弈中的关键策略参数'}], 'outputs': [{'name': '无人机对抗策略参数', 'symbol': 'strategy_params', 'type': '向量', 'dimension': '1', 'description': '无人机对抗决策的策略参数集'}], 'network_info': {'ip': '127.0.0.1', 'status': '空闲', 'is_remote': False}}"
 
     try:
         config_param = ast.literal_eval(config_param)
@@ -382,38 +472,44 @@ def main():
 
     args.ip = get_local_ip()
     client = AlgorithmStatusClient(args.server, args.port)
-
+    
     http_reporter = HTTPStatusReporter(args.http_server, args.http_port)
     
     algorithm_info = {
-        "category": "外置服务代理",
-        "class": "人工智能类",
-        "subcategory": "大语言模型类",
+        "name": args.name,
+        "category": "内置服务",
+        "class": "博弈论类",
+        "subcategory": "微分博弈类",
         "version": "1.0",
         "creator": "system",
-        "description": "大模型算法，提供自然语言处理和生成服务",
-        "inputs": ["文本输入", "参数配置"],
-        "outputs": ["文本输出", "处理结果"],
+        "description": "微分博弈算法，用于多智能体决策优化",
+        "inputs": ["状态向量", "控制输入"],
+        "outputs": ["最优策略", "纳什均衡解"],
         "network_info": {
+            "ip": args.algo_ip,
             "port": args.algo_port,
             "status": "运行中"
         }
     }
     
-    http_reporter.start_periodic_reporting(args.name, algorithm_info, args.report_interval)
-
+    http_reporter.start_periodic_reporting(args.name, algorithm_info, args.interval)
+    
     updated_info = update_algorithm_info(config_param, ip=args.algo_ip, port=args.algo_port, status="空闲")
     client.send_algorithm_info(updated_info)
 
-    algorithm = TemplateClass()
+    algorithm = AlgSrv_Notspecified()
 
     def signal_handler_with_http(sig, frame):
         global program_running
         print(f"\n接收到信号 {sig}，正在关闭程序...")
         program_running = False
-        algorithm_info["network_info"]["status"] = "离线"
-        http_reporter.send_status_message(args.name, algorithm_info)
+        
+        offline_info = algorithm_info.copy()
+        offline_info["network_info"]["status"] = "离线"
+        http_reporter.send_status_message(args.name, offline_info)
+        
         http_reporter.stop_reporting()
+        
         sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler_with_http)
@@ -442,13 +538,15 @@ def main():
     finally:
         program_running = False
 
-        algorithm_info["network_info"]["status"] = "离线"
-        http_reporter.send_status_message(args.name, algorithm_info)
+        offline_info = algorithm_info.copy()
+        offline_info["network_info"]["status"] = "离线"
+        http_reporter.send_status_message(args.name, offline_info)
+        
         http_reporter.stop_reporting()
-
+        
         if status_thread:
             status_thread.join(timeout=2.0)
-
+        
         if client:
             client.close()
         

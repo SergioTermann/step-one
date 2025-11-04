@@ -309,12 +309,6 @@ template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__fi
 if template_dir not in sys.path:
     sys.path.insert(0, template_dir)
 
-try:
-    from terminate_service_manager import start_terminate_service, get_terminate_service
-    _TERMINATE_SERVICE_AVAILABLE = True
-except ImportError:
-    _TERMINATE_SERVICE_AVAILABLE = False
-    print("[警告] 无法导入终止服务管理器，终止服务功能将不可用")
 
 class AlgorithmHttpServer:
     def __init__(self, port=8080):
@@ -387,16 +381,6 @@ if __name__ == "__main__":
     parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务端口')
     args = parser.parse_args()
     
-    if _TERMINATE_SERVICE_AVAILABLE:
-        print("[启动] 正在启动终止服务...")
-        if start_terminate_service(port=args.terminate_port):
-            print(f"[成功] 终止服务已启动在端口 {args.terminate_port}")
-            print(f"[提示] 可通过 POST http://localhost:{args.terminate_port}/terminate 来终止此进程")
-            print(f"[当前PID] {os.getpid()}")
-        else:
-            print("[失败] 终止服务启动失败")
-    else:
-        print("[跳过] 终止服务不可用")
     
     http_server = AlgorithmHttpServer(port=args.http_port)
     http_server.start()
@@ -419,16 +403,6 @@ if __name__ == "__main__":
     parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务端口')
     args = parser.parse_args()
     
-    if _TERMINATE_SERVICE_AVAILABLE:
-        print("[启动] 正在启动终止服务...")
-        if start_terminate_service(port=args.terminate_port):
-            print(f"[成功] 终止服务已启动在端口 {args.terminate_port}")
-            print(f"[提示] 可通过 POST http://localhost:{args.terminate_port}/terminate 来终止此进程")
-            print(f"[当前PID] {os.getpid()}")
-        else:
-            print("[失败] 终止服务启动失败")
-    else:
-        print("[跳过] 终止服务不可用")
     
     http_server = AlgorithmHttpServer(port=args.http_port)
     http_server.start()
@@ -453,21 +427,10 @@ template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__fi
 if template_dir not in sys.path:
     sys.path.insert(0, template_dir)
 
-try:
-    from terminate_service_manager import start_terminate_service, get_terminate_service
-    _TERMINATE_SERVICE_AVAILABLE = True
-except ImportError:
-    _TERMINATE_SERVICE_AVAILABLE = False
-    print("[警告] 无法导入终止服务管理器，终止服务功能将不可用")
-
-def add_terminate_support():
-    print("Termination server support added")
 
 def get_terminator():
     return ProcessTerminator()
 
-def register_current_process(process_number):
-    print(f"Process {process_number} registered")
 
 class ProcessTerminator:
     def __init__(self):

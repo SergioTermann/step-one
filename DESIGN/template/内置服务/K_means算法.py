@@ -62,14 +62,12 @@ class HTTPStatusReporter:
         return round(process.cpu_percent(interval=1), 2)
 
     def get_gpu_usage(self):
-        try:
-            pynvml.nvmlInit()
-            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-            utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
-            gpu_percent = utilization.gpu
-            return round(gpu_percent, 2)
-        except Exception:
-            return 0
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        gpu_percent = utilization.gpu
+        return round(gpu_percent, 2)
+
 
     def build_status_message(self, algorithm_name, algorithm_info):
         memory_usage = self.get_memory_usage()
@@ -84,7 +82,7 @@ class HTTPStatusReporter:
             "version": algorithm_info.get("version", "1.0"),
             "description": algorithm_info.get("description", "K-means聚类算法，用于数据聚类分析"),
             "ip": get_local_ip(),
-            "port": algorithm_info.get("network_info", {}).get("port", 8080),
+            "port": algorithm_info.get("network_info", {}).get("port", 8081),
             "creator": algorithm_info.get("creator", "system"),
             "network_info": {
                 "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
@@ -100,27 +98,23 @@ class HTTPStatusReporter:
         return status_data
     
     def send_status_message(self, algorithm_name, algorithm_info):
-        try:
-            status_data = self.build_status_message(algorithm_name, algorithm_info)
+        status_data = self.build_status_message(algorithm_name, algorithm_info)
 
-            if not status_data:
-                return False
+        if not status_data:
+            return False
 
-            response = self.session.post(
-                self.base_url,
-                json=status_data,
-                headers={'Content-Type': 'application/json', 'Connection': 'close'},
-                timeout=(15, 30)
-            )
+        response = self.session.post(
+            self.base_url,
+            json=status_data,
+            headers={'Content-Type': 'application/json', 'Connection': 'close'},
+            timeout=(15, 30)
+        )
 
-            if response.status_code == 200:
-                self.log_with_timestamp(f"成功发送算法 '{algorithm_name}' 的状态信息")
-                return True
-            else:
-                self.log_with_timestamp(f"发送状态失败，HTTP状态码: {response.status_code}")
-                return False
-        except Exception as e:
-            self.log_with_timestamp(f"发送状态时发生错误: {str(e)}")
+        if response.status_code == 200:
+            self.log_with_timestamp(f"成功发送算法 '{algorithm_name}' 的状态信息")
+            return True
+        else:
+            self.log_with_timestamp(f"发送状态失败，HTTP状态码: {response.status_code}")
             return False
     
     def periodic_report(self, algorithm_name, algorithm_info, interval):
@@ -128,7 +122,7 @@ class HTTPStatusReporter:
             self.send_status_message(algorithm_name, algorithm_info)
             time.sleep(interval)
     
-    def start_periodic_reporting(self, algorithm_name, algorithm_info, interval=30):
+    def start_periodic_reporting(self, algorithm_name, algorithm_info, interval=2):
         if self.reporting:
             self.log_with_timestamp("状态上报已在运行中")
             return None
@@ -151,14 +145,12 @@ class HTTPStatusReporter:
             self.log_with_timestamp("已停止状态上报")
 
 def get_local_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        return "127.0.0.1"
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    local_ip = s.getsockname()[0]
+    s.close()
+    return local_ip
+
 
 def get_memory_usage():
     process = psutil.Process(os.getpid())
@@ -182,39 +174,30 @@ class AlgorithmStatusClient:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send_algorithm_info(self, algorithm_info):
-        try:
-            data = json.dumps(algorithm_info, ensure_ascii=False).encode('utf-8')
+        data = json.dumps(algorithm_info, ensure_ascii=False).encode('utf-8')
 
-            self.socket.sendto(data, (self.server_ip, self.server_port))
-            print(f"已发送算法 '{algorithm_info.get('name', '未命名')}' 的信息到 {self.server_ip}:{self.server_port}")
-            return True
-        except Exception as e:
-            print(f"发送算法信息时出错: {e}")
-            return False
+        self.socket.sendto(data, (self.server_ip, self.server_port))
+        print(f"已发送算法 '{algorithm_info.get('name', '未命名')}' 的信息到 {self.server_ip}:{self.server_port}")
+        return True
+
 
     def close(self):
         self.socket.close()
 
 def load_algorithm_from_file(file_path, algorithm_name):
-    try:
-        if not os.path.exists(file_path):
-            print(f"错误: 文件 '{file_path}' 不存在")
-            return None
-
-        with open(file_path, 'r', encoding='utf-8') as f:
-            algorithms_data = json.load(f)
-
-        if algorithm_name not in algorithms_data:
-            print(f"错误: 在文件中找不到算法 '{algorithm_name}'")
-            return None
-
-        return algorithms_data[algorithm_name]
-    except json.JSONDecodeError:
-        print(f"错误: 文件 '{file_path}' 不是有效的JSON格式")
+    if not os.path.exists(file_path):
+        print(f"错误: 文件 '{file_path}' 不存在")
         return None
-    except Exception as e:
-        print(f"加载算法信息时出错: {e}")
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        algorithms_data = json.load(f)
+
+    if algorithm_name not in algorithms_data:
+        print(f"错误: 在文件中找不到算法 '{algorithm_name}'")
         return None
+
+    return algorithms_data[algorithm_name]
+
 
 def update_algorithm_info(algorithm_info, ip='192.168.43.3', port=9090, status="空闲", is_remote=True):
     if not algorithm_info:
@@ -324,14 +307,14 @@ def main():
     parser.add_argument('--file', default='algorithms.json', help='存储算法信息的JSON文件路径')
     parser.add_argument('--name', default='K_means算法', help='要加载的算法名称')
     parser.add_argument('--algo-ip', default='192.168.43.3', help='算法服务IP地址')
-    parser.add_argument('--algo-port', type=int, default=8080, help='算法服务端口')
+    parser.add_argument('--algo-port', type=int, default=8081, help='算法服务端口')
     parser.add_argument('--interval', type=float, default=2.0, help='发送间隔(秒)')
     parser.add_argument('--count', type=int, default=0, help='发送次数(0表示无限发送)')
     parser.add_argument('--status', default='running', help='算法状态')
     parser.add_argument('--remote', action='store_true', default=True, help='是否为远程算法')
     parser.add_argument('--http-server', default='180.1.80.3', help='HTTP状态上报服务器IP地址')
     parser.add_argument('--http-port', type=int, default=8192, help='HTTP状态上报服务器端口')
-    parser.add_argument('--report-interval', type=int, default=30, help='HTTP状态上报间隔(秒)')
+    parser.add_argument('--report-interval', type=int, default=2, help='HTTP状态上报间隔(秒)')
     parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务端口')
 
     args = parser.parse_args()
@@ -346,7 +329,7 @@ def main():
             print(f"[成功] 终止服务已启动在端口 {args.terminate_port}")
             print(f"[提示] 可通过以下方式终止此进程:")
             print(f"        POST http://localhost:{args.terminate_port}/terminate")
-            print(f"        请求体: {{'port': '{os.getpid()}'}}")
+            print(f"        请求体: {{'pid': '{os.getpid()}'}}")
             print(f"[当前PID] {os.getpid()}")
             print(f"[监听地址] 0.0.0.0:{args.terminate_port}")
         else:
@@ -355,13 +338,10 @@ def main():
         print("\n[跳过] 终止服务不可用，请检查 terminate_service_manager.py 是否存在")
     
     print("="*60 + "\n")
+    
     config_param = "${SPECIAL_PARAM}"
 
-    try:
-        config_param = ast.literal_eval(config_param)
-    except (SyntaxError, ValueError):
-        config_param = {}
-        print("无法解析配置参数，使用默认配置")
+    config_param = ast.literal_eval(config_param)
 
     if not config_param:
         print(f"无法加载算法 '{args.name}'，程序退出")
@@ -428,16 +408,10 @@ def main():
         print(f"程序执行出错: {e}")
     finally:
         program_running = False
-
+        
         algorithm_info["network_info"]["status"] = "离线"
         http_reporter.send_status_message(args.name, algorithm_info)
         http_reporter.stop_reporting()
-
-        if status_thread:
-            status_thread.join(timeout=2.0)
-
-        if client:
-            client.close()
         
         if _TERMINATE_SERVICE_AVAILABLE:
             print("\n[终止服务] 显示请求日志:")
@@ -446,7 +420,7 @@ def main():
                 service.print_logs()
             else:
                 print("  没有收到终止请求")
-
+        
         print("\n程序已正常退出")
 
 

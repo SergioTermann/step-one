@@ -81,7 +81,7 @@ class HTTPStatusReporter:
             "version": algorithm_info.get("version", "1.0"),
             "description": algorithm_info.get("description", "拍卖算法，用于资源分配和任务调度"),
             "ip": get_local_ip(),
-            "port": algorithm_info.get("network_info", {}).get("port", 8080),
+            "port": algorithm_info.get("network_info", {}).get("port", 8081),
             "creator": algorithm_info.get("creator", "system"),
             "network_info": {
                 "status": algorithm_info.get("network_info", {}).get("status", "空闲"),
@@ -318,14 +318,14 @@ def main():
     parser.add_argument('--file', default='algorithms.json', help='存储算法信息的JSON文件路径')
     parser.add_argument('--name', default='拍卖算法', help='要加载的算法名称')
     parser.add_argument('--algo-ip', default='192.168.43.3', help='算法服务IP地址')
-    parser.add_argument('--algo-port', type=int, default=8080, help='算法服务端口')
+    parser.add_argument('--algo-port', type=int, default=8081, help='算法服务端口')
     parser.add_argument('--interval', type=float, default=2.0, help='发送间隔(秒)')
     parser.add_argument('--count', type=int, default=0, help='发送次数(0表示无限发送)')
     parser.add_argument('--status', default='running', help='算法状态')
     parser.add_argument('--remote', action='store_true', default=True, help='是否为远程算法')
     parser.add_argument('--http-server', default='180.1.80.3', help='HTTP状态上报服务器IP')
     parser.add_argument('--http-port', type=int, default=8192, help='HTTP状态上报服务器端口')
-    parser.add_argument('--report-interval', type=int, default=30, help='HTTP状态上报间隔(秒)')
+    parser.add_argument('--report-interval', type=int, default=2, help='HTTP状态上报间隔(秒)')
     parser.add_argument('--terminate-port', type=int, default=8081, help='终止服务端口')
 
     args = parser.parse_args()
