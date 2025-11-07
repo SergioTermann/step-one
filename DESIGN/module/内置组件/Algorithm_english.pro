@@ -8,27 +8,27 @@ QT -= core gui
 
 TEMPLATE = lib
 
-DEFINES += Algorithm_consensus_control_LIBRARY
+DEFINES += Algorithm_english_LIBRARY
 
-SOURCES += Algorithm_consensus_control.cpp
+SOURCES += Algorithm_english.cpp
 
-HEADERS += Algorithm_consensus_control.h
+HEADERS += Algorithm_english.h
 
 CONFIG += plugin
 
 win32{
 #windows
     CONFIG (debug, debug|release) {
-    TARGET = ../../../debug/models/Algorithm_consensus_controld
+    TARGET = ../../../debug/models/Algorithm_englishd
 
     }else{
-    TARGET = ../../../release/models/Algorithm_consensus_control
+    TARGET = ../../../release/models/Algorithm_english
     }
 }else{
 #linux
     CONFIG (debug, debug|release) {
-    TARGET = ../../../debug/models/Algorithm_consensus_controld
+    TARGET = ../../../debug/models/Algorithm_englishd
     }else{
-    TARGET = ../../../release/models/Algorithm_consensus_control
+    TARGET = ../../../release/models/Algorithm_english
     }
 }

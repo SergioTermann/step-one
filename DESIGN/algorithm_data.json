@@ -144,61 +144,6 @@
             "is_remote": false
         }
     },
-    "微分博弈算法": {
-        "category": "内置服务",
-        "class": "自主决策类",
-        "subcategory": "对抗决策类",
-        "version": "1.5",
-        "creator": "刘华",
-        "create_time": "2025/1/25 16:40",
-        "maintainer": "张伟",
-        "update_time": "2025/2/18 11:20",
-        "description": "微分博弈算法用于求解动态对抗环境下的最优决策，通过求解微分方程组获得纳什均衡解。",
-        "inputs": [
-            {
-                "name": "无人机初始位置",
-                "symbol": "P_0",
-                "type": "向量",
-                "dimension": "位置",
-                "description": "无人机的初始位置坐标"
-            },
-            {
-                "name": "目标初始位置",
-                "symbol": "T_0",
-                "type": "向量",
-                "dimension": "位置",
-                "description": "目标的初始位置坐标"
-            },
-            {
-                "name": "初始速度",
-                "symbol": "V_0",
-                "type": "向量",
-                "dimension": "米每秒",
-                "description": "无人机的初始速度"
-            },
-            {
-                "name": "策略参数",
-                "symbol": "alpha",
-                "type": "标量",
-                "dimension": "1",
-                "description": "博弈中的关键策略参数"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "无人机对抗策略参数",
-                "symbol": "strategy_params",
-                "type": "向量",
-                "dimension": "1",
-                "description": "无人机对抗决策的策略参数集"
-            }
-        ],
-        "network_info": {
-            "ip": "127.0.0.1",
-            "status": "空闲",
-            "is_remote": false
-        }
-    },
     "鹰鸽博弈算法": {
         "new_algo_name": "template",
         "category": "内置服务",
@@ -230,7 +175,13 @@
                 "symbol": "V",
                 "type": "标量",
                 "dimension": "1",
-                "description": "争夺资源的价值"
+                "description": "123"
+            },
+            {
+                "name": "123",
+                "symbol": "",
+                "type": "Any",
+                "description": "备注"
             }
         ],
         "outputs": [
@@ -269,7 +220,7 @@
         "description": "基于信息素的协同侦察算法模拟蚁群行为，通过虚拟信息素标记机制实现多无人机的协同搜索与侦察任务。",
         "inputs": [
             {
-                "name": "侦查区域栅格数量",
+                "name": "侦察覆盖率",
                 "symbol": "N_grid",
                 "type": "向量",
                 "dimension": "1",
@@ -353,66 +304,6 @@
             "is_remote": false
         }
     },
-    "YOLO算法": {
-        "category": "外置信息代理",
-        "class": "认知识别类",
-        "subcategory": "目标检测类",
-        "version": "1.0.0",
-        "creator": "聊可好",
-        "create_time": "2025-04-01",
-        "maintainer": "浩帥",
-        "update_time": "2025-04-01",
-        "description": "DeepSeek_R1是一个大规模预训练语言模型，能够执行自然语言处理、推理、规划和决策辅助等任务。",
-        "inputs": [
-            {
-                "name": "提示词",
-                "symbol": "prompt",
-                "type": "字符串",
-                "dimension": "1",
-                "description": "用户输入的提示词或指令"
-            },
-            {
-                "name": "系统信息",
-                "symbol": "system",
-                "type": "字符串",
-                "dimension": "1",
-                "description": "系统角色设定和任务描述"
-            },
-            {
-                "name": "历史对话",
-                "symbol": "history",
-                "type": "列表",
-                "dimension": "1",
-                "description": "之前的对话历史记录"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "回复内容",
-                "symbol": "response",
-                "type": "字符串",
-                "dimension": "1",
-                "description": "模型生成的回复内容"
-            },
-            {
-                "name": "置信度",
-                "symbol": "confidence",
-                "type": "标量",
-                "dimension": "1",
-                "description": "模型对回复内容的置信度"
-            }
-        ],
-        "network_info": {
-            "ip": "192.168.75.136",
-            "port": 9090,
-            "status": "离线",
-            "last_update_timestamp": 1744015861.2297077,
-            "memory_usage": "2.73%",
-            "cpu_usage": "0.00%",
-            "gpu_usage": "未知",
-            "is_remote": true
-        }
-    },
     "拍卖算法": {
         "category": "外置信息代理",
         "class": "自主决策类",
@@ -446,61 +337,6 @@
                 "type": "矩阵",
                 "dimension": "1",
                 "description": "无人机与任务的分配结果矩阵"
-            }
-        ],
-        "network_info": {
-            "ip": "127.0.0.1",
-            "status": "空闲",
-            "is_remote": false
-        }
-    },
-    "Qwen2.5大模型": {
-        "category": "外置服务代理",
-        "class": "大模型类",
-        "subcategory": "大型语言模型",
-        "version": "2.5",
-        "creator": "阿里云",
-        "create_time": "2025/1/1 00:00",
-        "maintainer": "阿里云团队",
-        "update_time": "2025/2/15 00:00",
-        "description": "Qwen2.5是一个大规模预训练语言模型，能够执行自然语言处理、推理、规划和决策辅助等任务。",
-        "inputs": [
-            {
-                "name": "提示词",
-                "symbol": "prompt",
-                "type": "字符串",
-                "dimension": "1",
-                "description": ""
-            },
-            {
-                "name": "系统信息",
-                "symbol": "system",
-                "type": "字符串",
-                "dimension": "1",
-                "description": "系统角色设定和任务描述"
-            },
-            {
-                "name": "历史对话",
-                "symbol": "history",
-                "type": "list",
-                "dimension": "1",
-                "description": "之前的对话历史记录"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "回复内容",
-                "symbol": "response",
-                "type": "str",
-                "dimension": "1",
-                "description": "模型生成的回复内容"
-            },
-            {
-                "name": "置信度",
-                "symbol": "confidence",
-                "type": "int",
-                "dimension": "1",
-                "description": "模型对回复内容的置信度"
             }
         ],
         "network_info": {
@@ -559,73 +395,10 @@
             }
         ],
         "network_info": {
-            "ip": "180.1.80.2",
-            "port": 9091,
-            "status": "离线",
-            "last_update_timestamp": 1744015761.9599159,
-            "memory_usage": "3.66%",
-            "cpu_usage": "1.50%",
-            "gpu_usage": "0.00%",
-            "is_remote": true
-        }
-    },
-    "一致性编队算法": {
-        "category": "内置组件",
-        "class": "协同控制类",
-        "subcategory": "编队控制类",
-        "version": "1.4",
-        "creator": "吴刚",
-        "create_time": "2025/1/22 13:10",
-        "maintainer": "吴刚",
-        "update_time": "2025-10-30 11:22:03",
-        "description": "一致性编队算法基于一致性理论，实现多无人机系统的协同编队控制，保持预定的几何构型。",
-        "inputs": [
-            {
-                "name": "无人机集群期望形状",
-                "symbol": "F",
-                "type": "矩阵",
-                "dimension": "1",
-                "description": "编队的相对位置构型"
-            },
-            {
-                "name": "领航者参考轨迹",
-                "symbol": "Tr",
-                "type": "函数",
-                "dimension": "1",
-                "description": "领航者的时变参考轨迹"
-            },
-            {
-                "name": "无人机初始状态",
-                "symbol": "X_0",
-                "type": "矩阵",
-                "dimension": "米每秒",
-                "description": "无人机群的初始位置和速度状态"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "编队位置信息",
-                "symbol": "formation_pos",
-                "type": "矩阵",
-                "dimension": "位置",
-                "description": "编队中各无人机的位置坐标"
-            },
-            {
-                "name": "编队位置误差",
-                "symbol": "formation_error",
-                "type": "标量",
-                "dimension": "米",
-                "description": "编队整体的位置误差"
-            }
-        ],
-        "network_info": {
             "ip": "127.0.0.1",
             "status": "空闲",
             "is_remote": false
-        },
-        "name": "一致性编队算法",
-        "english_name": "",
-        "new_algo_name": ""
+        }
     },
     "扩展卡尔曼滤波算法": {
         "category": "内置服务",
@@ -684,5 +457,281 @@
         "name": "扩展卡尔曼滤波算法",
         "english_name": "",
         "new_algo_name": ""
+    },
+    "一致性编队算法": {
+        "category": "内置组件",
+        "class": "协同控制类",
+        "subcategory": "编队控制类",
+        "version": "1.4",
+        "creator": "吴刚",
+        "create_time": "2025/1/22 13:10",
+        "maintainer": "吴刚",
+        "update_time": "2025-11-05 14:33:09",
+        "description": "一致性编队算法基于一致性理论，实现多无人机系统的协同编队控制，保持预定的几何构型。1122",
+        "inputs": [
+            {
+                "name": "123231",
+                "symbol": "去",
+                "type": "矩阵",
+                "dimension": "1",
+                "description": "编队的相对位置构型"
+            },
+            {
+                "name": "领航者参考轨迹",
+                "symbol": "Tr",
+                "type": "函数",
+                "dimension": "1",
+                "description": "领航者的时变参考轨迹"
+            },
+            {
+                "name": "无人机初始状态",
+                "symbol": "X_0",
+                "type": "矩阵",
+                "dimension": "米每秒",
+                "description": "初始位置"
+            },
+            {
+                "name": "123",
+                "symbol": "x",
+                "type": "bool",
+                "description": "备注",
+                "dimension": "m"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "编队位置信息",
+                "symbol": "formation_pos",
+                "type": "矩阵",
+                "dimension": "位置",
+                "description": "编队中各无人机的位置坐标"
+            },
+            {
+                "name": "编队位置误差",
+                "symbol": "1111",
+                "type": "标量",
+                "dimension": "米",
+                "description": "编队整体的位置误差"
+            },
+            {
+                "name": "123",
+                "symbol": "",
+                "type": "Any",
+                "description": "123"
+            },
+            {
+                "name": "111",
+                "symbol": "x",
+                "type": "Any",
+                "description": ""
+            }
+        ],
+        "network_info": {
+            "ip": "127.0.0.1",
+            "status": "空闲",
+            "is_remote": false
+        },
+        "name": "一致性编队算法",
+        "english_name": "english",
+        "new_algo_name": "abc"
+    },
+    "微分博弈算法": {
+        "category": "内置服务",
+        "class": "自主决策类",
+        "subcategory": "对抗决策类",
+        "version": "2.0",
+        "creator": "刘华",
+        "create_time": "2025/1/25 16:40",
+        "maintainer": "郝帅",
+        "update_time": "2025-11-05 14:54:55",
+        "description": "微分博弈算法用于求解动态对抗环境下的最优决策，通过求解微分方程组获得纳什均衡解。",
+        "inputs": [
+            {
+                "name": "无人机初始位置",
+                "symbol": "P_0",
+                "type": "向量",
+                "dimension": "位置",
+                "description": "无人机的初始位置坐标"
+            },
+            {
+                "name": "目标初始位置",
+                "symbol": "T_0",
+                "type": "向量",
+                "dimension": "位置",
+                "description": "目标的初始位置坐标"
+            },
+            {
+                "name": "初始速度",
+                "symbol": "V_0",
+                "type": "向量",
+                "dimension": "米每秒",
+                "description": "无人机的初始速度"
+            },
+            {
+                "name": "策略参数",
+                "symbol": "alpha",
+                "type": "标量",
+                "dimension": "1",
+                "description": "博弈中的关键策略参数"
+            },
+            {
+                "name": "123",
+                "symbol": "",
+                "type": "Any",
+                "description": ""
+            }
+        ],
+        "outputs": [
+            {
+                "name": "无人机对抗策略参数",
+                "symbol": "strategy_params",
+                "type": "向量",
+                "dimension": "1",
+                "description": "无人机对抗决策的策略参数集"
+            }
+        ],
+        "network_info": {
+            "ip": "127.0.0.1",
+            "status": "空闲",
+            "is_remote": false
+        },
+        "name": "微分博弈算法",
+        "english_name": "delta",
+        "new_algo_name": "bdcd"
+    },
+    "YOLO算法": {
+        "category": "外置信息代理",
+        "class": "认知识别类",
+        "subcategory": "目标检测类",
+        "version": "1.0.0",
+        "creator": "聊可好",
+        "create_time": "2025-04-01",
+        "maintainer": "好帅哦",
+        "update_time": "2025-11-05 14:59:33",
+        "description": "DeepSeek_R1是一个大规模预训练语言模型，能够执行自然语言处理、推理、规划和决策辅助等任务。11月5日。",
+        "inputs": [
+            {
+                "name": "提示词",
+                "symbol": "prompt",
+                "type": "字符串",
+                "dimension": "1",
+                "description": "用户输入的提示词或指令"
+            },
+            {
+                "name": "系统信息",
+                "symbol": "system",
+                "type": "字符串",
+                "dimension": "1",
+                "description": "系统角色设定和任务描述"
+            },
+            {
+                "name": "历史对话",
+                "symbol": "history",
+                "type": "列表",
+                "dimension": "1",
+                "description": "备注"
+            },
+            {
+                "name": "123",
+                "symbol": "xyz",
+                "type": "double",
+                "description": "beizhu hhhhh",
+                "dimension": "m"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "回复内容",
+                "symbol": "response",
+                "type": "字符串",
+                "dimension": "1",
+                "description": "模型生成的回复内容"
+            },
+            {
+                "name": "置信度",
+                "symbol": "confidence",
+                "type": "标量",
+                "dimension": "1",
+                "description": "模型对回复内容的置信度"
+            },
+            {
+                "name": "555",
+                "symbol": "",
+                "type": "Any",
+                "description": ""
+            }
+        ],
+        "network_info": {
+            "ip": "127.0.0.1",
+            "status": "空闲",
+            "is_remote": false
+        },
+        "name": "YOLO算法",
+        "english_name": "YOLO",
+        "new_algo_name": "def"
+    },
+    "Qwen2.5大模型": {
+        "category": "外置服务代理",
+        "class": "大模型类",
+        "subcategory": "大型语言模型",
+        "version": "2.5",
+        "creator": "阿里云",
+        "create_time": "2025/1/1 00:00",
+        "maintainer": "阿里云团队",
+        "update_time": "2025-11-05 15:04:58",
+        "description": "Qwen2.5是一个大规模预训练语言模型，能够执行自然语言处理、推理、规划和决策辅助等任务。11yue 45ri",
+        "inputs": [
+            {
+                "name": "提示词",
+                "symbol": "prompt",
+                "type": "字符串",
+                "dimension": "1",
+                "description": ""
+            },
+            {
+                "name": "系统信息",
+                "symbol": "system",
+                "type": "字符串",
+                "dimension": "1",
+                "description": "系统角色设定和任务描述"
+            },
+            {
+                "name": "历史对话",
+                "symbol": "history",
+                "type": "list",
+                "dimension": "1",
+                "description": "之前的对话历史记录"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "回复内容",
+                "symbol": "response",
+                "type": "str",
+                "dimension": "1",
+                "description": "模型生成的回复内容"
+            },
+            {
+                "name": "置信度",
+                "symbol": "confidence",
+                "type": "int",
+                "dimension": "1",
+                "description": "模型对回复内容的置信度"
+            },
+            {
+                "name": "爱上的阿四",
+                "symbol": "",
+                "type": "Any",
+                "description": ""
+            }
+        ],
+        "network_info": {
+            "ip": "127.0.0.1",
+            "status": "空闲",
+            "is_remote": false
+        },
+        "name": "Qwen2.5大模型",
+        "english_name": "qwen",
+        "new_algo_name": "gtt"
     }
 }

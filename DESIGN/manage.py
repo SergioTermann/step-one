@@ -1087,7 +1087,7 @@ class AlgorithmHttpServer:
         except Exception as e:
             messagebox.showerror("错误", f"保存配置时发生错误: {str(e)}")
 
-    def update_algorithm_json_type(self, row_item, new_type):
+    def update_algorithm_json_type(self, row_item, new_type, table_type="input"):
         try:
             updated_algorithm_data = copy.deepcopy(self.algorithm_data)
 
@@ -1095,13 +1095,23 @@ class AlgorithmHttpServer:
                 messagebox.showwarning("警告", "请先选择一个算法")
                 return
 
-            row_values = self.input_table.item(row_item, 'values')
+            # 根据表格类型选择正确的表格和数组
+            if table_type == "output":
+                table = self.output_table
+                params_key = "outputs"
+            else:
+                table = self.input_table
+                params_key = "inputs"
+            
+            row_values = table.item(row_item, 'values')
             algo_data = updated_algorithm_data[self.current_algorithm]
-            inputs = algo_data.get("inputs", [])
+            params = algo_data.get(params_key, [])
 
-            for param in inputs:
-                param["type"] = new_type
-                break
+            # 找到对应的参数并更新
+            for param in params:
+                if param.get("name") == row_values[0]:
+                    param["type"] = new_type
+                    break
 
             json_path = os.path.join('algorithm_data.json')
             with open(json_path, "w", encoding="utf-8") as file:
@@ -1113,7 +1123,7 @@ class AlgorithmHttpServer:
         except Exception as e:
             messagebox.showerror("错误", f"更新JSON文件时发生错误: {str(e)}")
 
-    def update_algorithm_json_name(self, row_item, new_name):
+    def update_algorithm_json_name(self, row_item, new_name, table_type="input"):
         try:
             updated_algorithm_data = copy.deepcopy(self.algorithm_data)
 
@@ -1121,14 +1131,24 @@ class AlgorithmHttpServer:
                 messagebox.showwarning("警告", "请先选择一个算法")
                 return
 
-            row_values = self.input_table.item(row_item, 'values')
+            # 根据表格类型选择正确的表格和数组
+            if table_type == "output":
+                table = self.output_table
+                params_key = "outputs"
+            else:
+                table = self.input_table
+                params_key = "inputs"
+            
+            row_values = table.item(row_item, 'values')
 
             algo_data = updated_algorithm_data[self.current_algorithm]
-            inputs = algo_data.get("inputs", [])
+            params = algo_data.get(params_key, [])
 
-            for param in inputs:
-                param["name"] = new_name
-                break
+            # 找到对应的参数并更新
+            for param in params:
+                if param.get("name") == row_values[0]:
+                    param["name"] = new_name
+                    break
 
             json_path = os.path.join('algorithm_data.json')
             with open(json_path, "w", encoding="utf-8") as file:
@@ -1140,7 +1160,7 @@ class AlgorithmHttpServer:
         except Exception as e:
             messagebox.showerror("错误", f"更新JSON文件时发生错误: {str(e)}")
 
-    def update_algorithm_json_symbol(self, row_item, new_symbol):
+    def update_algorithm_json_symbol(self, row_item, new_symbol, table_type="input"):
         try:
             updated_algorithm_data = copy.deepcopy(self.algorithm_data)
 
@@ -1148,14 +1168,24 @@ class AlgorithmHttpServer:
                 messagebox.showwarning("警告", "请先选择一个算法")
                 return
 
-            row_values = self.input_table.item(row_item, 'values')
+            # 根据表格类型选择正确的表格和数组
+            if table_type == "output":
+                table = self.output_table
+                params_key = "outputs"
+            else:
+                table = self.input_table
+                params_key = "inputs"
+            
+            row_values = table.item(row_item, 'values')
 
             algo_data = updated_algorithm_data[self.current_algorithm]
-            inputs = algo_data.get("inputs", [])
+            params = algo_data.get(params_key, [])
 
-            for param in inputs:
-                param["symbol"] = new_symbol
-                break
+            # 找到对应的参数并更新
+            for param in params:
+                if param.get("name") == row_values[0]:
+                    param["symbol"] = new_symbol
+                    break
 
             json_path = os.path.join('algorithm_data.json')
             with open(json_path, "w", encoding="utf-8") as file:
@@ -1168,7 +1198,7 @@ class AlgorithmHttpServer:
         except Exception as e:
             messagebox.showerror("错误", f"更新JSON文件时发生错误: {str(e)}")
 
-    def update_algorithm_json_description(self, row_item, new_description):
+    def update_algorithm_json_dimension(self, row_item, new_dimension, table_type="input"):
         try:
             updated_algorithm_data = copy.deepcopy(self.algorithm_data)
 
@@ -1176,14 +1206,62 @@ class AlgorithmHttpServer:
                 messagebox.showwarning("警告", "请先选择一个算法")
                 return
 
-            row_values = self.input_table.item(row_item, 'values')
+            # 根据表格类型选择正确的表格和数组
+            if table_type == "output":
+                table = self.output_table
+                params_key = "outputs"
+            else:
+                table = self.input_table
+                params_key = "inputs"
+            
+            row_values = table.item(row_item, 'values')
 
             algo_data = updated_algorithm_data[self.current_algorithm]
-            inputs = algo_data.get("inputs", [])
+            params = algo_data.get(params_key, [])
 
-            for param in inputs:
-                param["description"] = new_description
-                break
+            # 找到对应的参数并更新
+            for param in params:
+                if param.get("name") == row_values[0]:
+                    param["dimension"] = new_dimension
+                    break
+
+            json_path = os.path.join('algorithm_data.json')
+            with open(json_path, "w", encoding="utf-8") as file:
+                json.dump(updated_algorithm_data, file, ensure_ascii=False, indent=4)
+
+            self.algorithm_data = updated_algorithm_data
+
+            messagebox.showinfo("提示", f"参数 {row_values[0]} 的量纲已更新为 {new_dimension}")
+
+        except Exception as e:
+            messagebox.showerror("错误", f"更新JSON文件时发生错误: {str(e)}")
+
+    def update_algorithm_json_description(self, row_item, new_description, table_type="input"):
+        try:
+            updated_algorithm_data = copy.deepcopy(self.algorithm_data)
+
+            if not self.current_algorithm:
+                messagebox.showwarning("警告", "请先选择一个算法")
+                return
+
+            # 根据表格类型选择正确的表格和数组
+            if table_type == "output":
+                table = self.output_table
+                params_key = "outputs"
+            else:
+                table = self.input_table
+                params_key = "inputs"
+            
+            row_values = table.item(row_item, 'values')
+
+            algo_data = updated_algorithm_data[self.current_algorithm]
+            params = algo_data.get(params_key, [])
+
+            # 找到对应的参数并更新
+            for param in params:
+                if param.get("name") == row_values[0]:
+                    param["description"] = new_description
+                    break
 
             json_path = os.path.join('algorithm_data.json')
             with open(json_path, "w", encoding="utf-8") as file:
@@ -1201,19 +1279,23 @@ class AlgorithmHttpServer:
         # 确定是哪个表格被点击
         if event.widget == self.input_table:
             table = self.input_table
+            table_type = "input"
             update_methods = {
                 0: self.update_algorithm_json_name,
                 1: self.update_algorithm_json_symbol,
                 2: self.update_algorithm_json_type,
-                3: self.update_algorithm_json_description
+                3: self.update_algorithm_json_dimension,
+                4: self.update_algorithm_json_description
             }
         elif event.widget == self.output_table:
             table = self.output_table
+            table_type = "output"
             update_methods = {
                 0: self.update_algorithm_json_name,
                 1: self.update_algorithm_json_symbol,
                 2: self.update_algorithm_json_type,
-                3: self.update_algorithm_json_description
+                3: self.update_algorithm_json_dimension,
+                4: self.update_algorithm_json_description
             }
         else:
             return
@@ -1229,6 +1311,16 @@ class AlgorithmHttpServer:
 
         # 确定列索引
         col_index = int(column[1:]) - 1
+        
+        # 获取当前行的值，检查数据完整性
+        current_values = list(table.item(row, 'values'))
+        
+        # 如果数据不完整，补全到5列
+        while len(current_values) < 5:
+            current_values.append("")
+        
+        # 更新表格数据以确保完整性
+        table.item(row, values=current_values)
 
         # 处理"类型"列（第三列）
         if col_index == 2:  # 类型列
@@ -1236,7 +1328,6 @@ class AlgorithmHttpServer:
             type_combo = ttk.Combobox(table, values=self.PARAMETER_TYPES, state="readonly")
 
             # 设置当前值
-            current_values = list(table.item(row, 'values'))
             current_value = current_values[col_index]
             type_combo.set(current_value)
 
@@ -1245,21 +1336,32 @@ class AlgorithmHttpServer:
             type_combo.place(x=x, y=y, width=width, height=height)
             type_combo.focus_set()
 
+            # 标志位，防止重复触发更新
+            updated = [False]
+
             def on_select(event):
+                if updated[0]:
+                    return
+                updated[0] = True
+                
                 # 更新表格值
                 current = type_combo.get()
                 current_values[col_index] = current
                 table.item(row, values=current_values)
 
                 # 更新JSON数据
-                update_methods[col_index](row, type_combo.get())
+                update_methods[col_index](row, type_combo.get(), table_type)
                 type_combo.destroy()
 
-            type_combo.bind('<<ComboboxSelected>>', on_select)
-            type_combo.bind('<FocusOut>', lambda e: type_combo.destroy())
+            def on_focusout(event):
+                if not updated[0]:
+                    type_combo.destroy()
 
-        # 处理其他列（参数名、符号、描述）
-        elif col_index in [0, 1, 3, 4]:  # 参数名、符号、描述列
+            type_combo.bind('<<ComboboxSelected>>', on_select)
+            type_combo.bind('<FocusOut>', on_focusout)
+
+        # 处理其他列（参数名、符号、量纲、描述）
+        elif col_index in [0, 1, 3, 4]:  # 参数名、符号、量纲、描述列
             # 创建输入框
             edit_entry = ttk.Entry(table)
 
@@ -1268,7 +1370,6 @@ class AlgorithmHttpServer:
             edit_entry.place(x=x, y=y, width=width, height=height)
 
             # 获取当前值
-            current_values = list(table.item(row, 'values'))
             current_value = current_values[col_index]
 
             # 设置初始值
@@ -1276,23 +1377,34 @@ class AlgorithmHttpServer:
             edit_entry.focus_set()
             edit_entry.select_range(0, tk.END)
 
+            # 标志位，防止重复触发更新
+            updated = [False]
+
             def on_enter(event):
+                if updated[0]:
+                    return
+                updated[0] = True
+                
                 # 更新表格值
                 current_values[col_index] = edit_entry.get()
                 table.item(row, values=current_values)
 
                 # 调用对应的更新方法
-                update_methods[col_index](row, edit_entry.get())
+                update_methods[col_index](row, edit_entry.get(), table_type)
 
                 edit_entry.destroy()
 
             def on_focusout(event):
+                if updated[0]:
+                    return
+                updated[0] = True
+                
                 # 更新表格值
                 current_values[col_index] = edit_entry.get()
                 table.item(row, values=current_values)
 
                 # 调用对应的更新方法
-                update_methods[col_index](row, edit_entry.get())
+                update_methods[col_index](row, edit_entry.get(), table_type)
 
                 edit_entry.destroy()
 
